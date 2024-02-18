@@ -19,49 +19,74 @@ def LCD_Display():
     lcd_columns = 16
     lcd_rows = 2
     i2c_lcd = board.I2C()
+
     lcd = character_lcd.Character_LCD_RGB_I2C(i2c_lcd, lcd_columns, lcd_rows)
     lcd.clear()
     lcd.color = [50, 0, 50]
+    
+    #faster/prettier messages part 1
+    lcd.message= "Desied Location:"
 
     #this should be constantly running simultaneously as the main body
     while(True):
         if (not Q.empty()):
-            quadrant_int = Q.get()
-            if(quadrant_int == -1):
+            lcd.cursor_position(0,1) #faster/prettier part 2. Only change second row
+
+            quadrant = Q.get()
+            #I've decided to take this out for now because it wasn't really working
+            '''
+            if(quadrant == -1):
                 output = "No aruco :("            
             else:
-                quadrant_string = str(quadrant_int//2) + " " + str(quadrant_int%2)
-                output = f"I got: {quadrant_string}" 
-            print(output) #I may comment this out if it slows down program
-            lcd.clear()
+            '''
+            output = str(quadrant) 
+            #print(output) #I may comment this out if it slows down program
+            starttime = time.time()
             lcd.message = output
+            endtime = time.time()
+            print("lcd message time: ", endtime - starttime)
 
 
 
 
-#I2C address of arduino, set in Arduino Sketch as well
+#Arduino Iniialization
 ARD_ADDR = 8
 i2c_arduiino = SMBus(1)
 
+
+
+
+#thread Initialization
 Q = queue.Queue()
 
 threadLCD = threading.Thread(target = LCD_Display, args = ())
 threadLCD.start()
-time.sleep(5) #gives it a second tin initialize
+time.sleep(1) #gives it a second tin initialize
 
+
+#Camera initialization
 cap = cv2.VideoCapture(0) #initializes camera channel
 aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_6X6_50) #we're considering 50 of the 6x6 aruco markers
 parameters = aruco.DetectorParameters()
 old_quadrant = 4 #this is initialization for old_quadrant, which will help to see when quadrant changes. 4 represents no other state, so change will happen 
+time.sleep(0.5)
+
 while True:
-        ret,frame = cap.read() #get the image from camera
+        #totalstart = time.time()
+        #starttime = time.time()
+        ret,frame = cap.read() #get the image from camera. Initially takes long, takes less time after the first capture (startup?)
+        #endtime = time.time()
+        #print("image capture time: ", endtime - starttime)
+        
+        
 
         if not ret:
                 print("error capturing frame")
                 break
-
+        #starttime = time.time()
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) #Convert to gray to detect the arucos
-
+        #endtime = time.time()
+        #print(f"Grayscale conversion time: ", endtime - starttime)
         
 
         #corners is a list of numpy arrays. 
@@ -71,73 +96,72 @@ while True:
         #the fourth and final index is selecting the x value or y value
         #so corn
         
-        corners, ids, _ = aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
+        #starttime = time.time()
+        corners, ids, _ = aruco.detectMarkers(gray, aruco_dict, parameters=parameters) #this is taking the most time, idk why
+        #endtime = time.time()
+        #print("Aruco detection time: ", endtime - starttime)
 
-        #these should be the bottom right corners of each quadrant I think? 
-        
-        nwX = 240 
-        nwY = 319
-        
-        neX = 480
-        neY = 319
-        
-        swX = 240
-        swY = 640
-        
-        seX = 480
-        seY = 640
 
         #If we have detected anything with our aruco.detectMarkers function, we consider which quadrant stuff is in
         if ids is not None: 
-
-            #xSum is the sum of the x coordinates of each corner.
-            #ySum is the sum of the y coordinates of each corner. 
-            #note that right now, we are only considering for 1 corner (corners[0]). We'd have to do for loop probably to detect which quadrants multiple are in.
-            xSum = corners[0][0][0][0]+ corners[0][0][1][0]+ corners[0][0][2][0]+ corners[0][0][3][0]
-            ySum = corners[0][0][0][1]+ corners[0][0][1][1]+ corners[0][0][2][1]+ corners[0][0][3][1]
-
-            xCenterPixel = xSum*.25 #Maybe xSum could just be 0000 + 0010 /2 instead of all the x coordinates by 4?
-            yCenterPixel = ySum*.25 #same with ysum? not too much time complexity though so it shouldn't matter
+            #starttime = time.time()
+            xCenterPixel = np.mean(corners[0][0][:, 0]) #Maybe xSum could just be 0000 + 0010 /2 instead of all the x coordinates by 4?
+            yCenterPixel = np.mean(corners[0][0][:, 1]) #same with ysum? not too much time complexity though so it shouldn't matter
 
             #this is a switch statement to calculate which  quadrant the aruco is in. Just returns quadrant, not if it is new or anything.
             #the value of quadrant is what will be put into the LCD display or sent to the arduino
             if xCenterPixel < 240 and yCenterPixel < 320:
                 #print("aruco is in the NW Corner") #commenting out testing print statements b/c they slow
                 quadrant = 1
-            elif xCenterPixel > 240 and yCenterPixel < 320:
+            elif xCenterPixel >= 240 and yCenterPixel < 320:
                 #print("aruco is in the NE Corner") #commenting out testing print statements b/c they slow
                 quadrant = 0
-            elif xCenterPixel < 240 and yCenterPixel > 320:
+            elif xCenterPixel < 240 and yCenterPixel >= 320:
                 #print("aruco is in the SW corner") #commenting out testing print statements b/c they slow
                 quadrant = 3
             else:
                 #print("aruco is in the SE Corner") #commenting out testing print statements b/c they slow
                 quadrant = 2
-                        
-        
+            quadrant_string = "(" + str(quadrant //2) + ", " + str(quadrant %2) + ")"
+            #endtime = time.time()
+            #print("Quadrant detection time: ", endtime - starttime)
         else:
             #print("No markers found") #commenting out testing print statements b/c they slow
             quadrant = -1
+            quadrant_string = " " * 16
 
         #needs to be outside detection loop, in case we go from having aruco to not having aruco
-        if(quadrant != old_quadrant): #if we have new aruco location
-            Q.put(quadrant) #this prints it to LCD (or prints that there's no aruco
-            
+        if(quadrant != old_quadrant): #if we have new aruco location:
+            #starttime = time.time()
+            Q.put(quadrant_string) #this prints it to LCD (or prints that there's no aruco
+            #endtime = time.time()
+            #print("Q put time: ", endtime - starttime)
             #here we will add in arduino send code
 
 
 
             old_quadrant = quadrant # state shift
         #otherwise, no need for sending anything anywhere
-                
-        #This just draws in lines (in green I think? If we are with BGR?), to make sure that the corner detection algorithm is working.
-        cv2.line(frame,(320,0),(320,480),(0,255,0),3)
-        cv2.line(frame,(0,240),(640,240),(0,255,0),3)
-        cv2.imshow('Frame',frame)
 
+
+        #starttime = time.time()
+        #This just draws in lines (in green I think? If we are with BGR?), to make sure that the corner detection algorithm is working.
+        cv2.line(frame,(320,0),(320,480),(0,255,0),1)
+        cv2.line(frame,(0,240),(640,240),(0,255,0),1)
+        ##endtime = time.time()
+        #print("line drawing time: ", endtime - starttime)
+        #starttime = time.time()
+        cv2.imshow('Frame',frame) #this should reduce delay a bit maybe?
+        #endtime = time.time()
+        #print("Imshow time: ", endtime - starttime)
+        #displaying image
         key = cv2.waitKey(1) & 0xFF #display the image until q is pressed? The &0xFF is a bitwise mask so that we only consider the byte (where chars are)
         if key == ord('q'): #I think this is just continuous stream until q is pressed. I like
                 break
+        #break #remove after I'm done with time profiling
+        #totalend = time.time()
+        #print("A full loop took this many seconds: ", totalend - totalstart)
+
 
 
 cap.release()
