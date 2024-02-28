@@ -183,8 +183,8 @@ void loop()
   //Serial.println(positionalError2);
 
   //Calculate integral error
-  integratorError1 = (positionalError1) * ((float)(delaySystem/1000.0)) + integratorError1;
-  integratorError2 = (positionalError2) * ((float)(delaySystem/1000.0)) + integratorError2;
+  integratorError1 = (positionalError1) * ((float)(10/1000.0)) + integratorError1;
+  integratorError2 = (positionalError2) * ((float)(10/1000.0)) + integratorError2;
 
   // debug statement
   //Serial.print("integratorError1: ");
