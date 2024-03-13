@@ -151,12 +151,13 @@ while True:
             #print("Q put time: ", endtime - starttime)
             
             #here we will add in arduino send code
+            '''
             try:
                 i2c_arduino.write_byte_data(ARD_ADDR, 1, quadrant) #only sends with new quadrant
             except IOError:
                 print("Could not write data to the arduino")
                 break
-            
+            '''
             
 
 

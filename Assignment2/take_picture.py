@@ -32,15 +32,15 @@ camera = cv2.VideoCapture(0)
 # Let the camera warmup
 sleep(0.1)
 
-camera_640_480_capture()
+#camera_640_480_capture()
 
-''' Given DEMO CODE
+#Given DEMO CODE
 
 # Get an image from the camera stream
 ret, image = camera.read()
 
 
-        
+fileName = "aruco_image.jpg"
 if not ret:
 	print("Could not capture image from camera!")
 	quit()
@@ -58,7 +58,6 @@ else:
                 except:
                         print("Could not save "+fileName)
                         pass
-'''
 	
 		
 	

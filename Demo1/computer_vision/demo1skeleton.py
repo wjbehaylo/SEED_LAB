@@ -1,7 +1,9 @@
 import cv2
 import numpy as np
+from cv2 import aruco
+from time import sleep
 
-dictionary = cv2.aruco.Dictionary_get(cv2.aruco.DICT_6X6_250)
+dictionary = cv2.aruco.getPredefinedDictionary(aruco.DICT_6X6_50)
 
 # Load calibration images
 calibration_images = [cv2.imread(f'calibration_image_{i}.jpg') for i in range(1, 11)]
