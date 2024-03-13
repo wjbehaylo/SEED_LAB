@@ -41,17 +41,17 @@ def LCD_Display():
             '''
             output = str(quadrant) 
             #print(output) #I may comment this out if it slows down program
-            starttime = time.time()
+            #starttime = time.time()
             lcd.message = output
-            endtime = time.time()
-            print("lcd message time: ", endtime - starttime)
-
+            #endtime = time.time()
+            #print("lcd message time: ", endtime - starttime)
+        time.sleep(0.1)
 
 
 
 #Arduino Iniialization
 ARD_ADDR = 8
-i2c_arduiino = SMBus(1)
+i2c_arduino = SMBus(1)
 
 
 
@@ -77,7 +77,20 @@ while True:
         ret,frame = cap.read() #get the image from camera. Initially takes long, takes less time after the first capture (startup?)
         #endtime = time.time()
         #print("image capture time: ", endtime - starttime)
-        
+        #starttime = time.time()
+        #This just draws in lines (in green I think? If we are with BGR?), to make sure that the corner detection algorithm is working.
+        #cv2.line(frame,(320,0),(320,480),(0,255,0),1)
+        #cv2.line(frame,(0,240),(640,240),(0,255,0),1)
+        ##endtime = time.time()
+        #print("line drawing time: ", endtime - starttime)
+        #starttime = time.time()
+        cv2.imshow('Frame',frame) #this should reduce delay a bit maybe?
+        #endtime = time.time()
+        #print("Imshow time: ", endtime - starttime)
+        #displaying image
+        key = cv2.waitKey(1) & 0xFF #display the image until q is pressed? The &0xFF is a bitwise mask so that we only consider the byte (where chars are)
+        if key == ord('q'): #I think this is just continuous stream until q is pressed. I like
+                break
         
 
         if not ret:
@@ -110,13 +123,13 @@ while True:
 
             #this is a switch statement to calculate which  quadrant the aruco is in. Just returns quadrant, not if it is new or anything.
             #the value of quadrant is what will be put into the LCD display or sent to the arduino
-            if xCenterPixel < 240 and yCenterPixel < 320:
+            if xCenterPixel < 320 and yCenterPixel < 240:
                 #print("aruco is in the NW Corner") #commenting out testing print statements b/c they slow
                 quadrant = 1
-            elif xCenterPixel >= 240 and yCenterPixel < 320:
+            elif xCenterPixel >= 320 and yCenterPixel < 240:
                 #print("aruco is in the NE Corner") #commenting out testing print statements b/c they slow
                 quadrant = 0
-            elif xCenterPixel < 240 and yCenterPixel >= 320:
+            elif xCenterPixel < 320 and yCenterPixel >= 240:
                 #print("aruco is in the SW corner") #commenting out testing print statements b/c they slow
                 quadrant = 3
             else:
@@ -136,28 +149,22 @@ while True:
             Q.put(quadrant_string) #this prints it to LCD (or prints that there's no aruco
             #endtime = time.time()
             #print("Q put time: ", endtime - starttime)
+            
             #here we will add in arduino send code
-
+            try:
+                i2c_arduino.write_byte_data(ARD_ADDR, 1, quadrant) #only sends with new quadrant
+            except IOError:
+                print("Could not write data to the arduino")
+                break
+            
+            
 
 
             old_quadrant = quadrant # state shift
         #otherwise, no need for sending anything anywhere
 
 
-        #starttime = time.time()
-        #This just draws in lines (in green I think? If we are with BGR?), to make sure that the corner detection algorithm is working.
-        cv2.line(frame,(320,0),(320,480),(0,255,0),1)
-        cv2.line(frame,(0,240),(640,240),(0,255,0),1)
-        ##endtime = time.time()
-        #print("line drawing time: ", endtime - starttime)
-        #starttime = time.time()
-        cv2.imshow('Frame',frame) #this should reduce delay a bit maybe?
-        #endtime = time.time()
-        #print("Imshow time: ", endtime - starttime)
-        #displaying image
-        key = cv2.waitKey(1) & 0xFF #display the image until q is pressed? The &0xFF is a bitwise mask so that we only consider the byte (where chars are)
-        if key == ord('q'): #I think this is just continuous stream until q is pressed. I like
-                break
+        
         #break #remove after I'm done with time profiling
         #totalend = time.time()
         #print("A full loop took this many seconds: ", totalend - totalstart)
