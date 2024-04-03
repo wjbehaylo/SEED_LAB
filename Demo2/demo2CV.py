@@ -248,7 +248,7 @@ while state is not stateE:
     #this is our state transition. Various states have different things they consider, so instead of setting up their inputs I make them global
     new_state = state()
     state = new_state
-        
+
 #this is what happens after we enter into stateE, since we exit the loop
 cap.release()
 cv2.destroyAllWindows()
