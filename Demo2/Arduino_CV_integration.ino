@@ -44,7 +44,7 @@ void receiveFromPi() // this receives the information from the pi about starting
     }
 
     //offset = 0 here, not that it matters
-    if (msgLength == 1 && msg[0] == 0){
+    if (msgLength == 1 && instruction[0] == 0){
         start=1; //this is a flag to raise to indicate to the arduino that we're ready to start spinning
     }
     //offset is 1 here, again, doesn't matter
