@@ -27,7 +27,9 @@ void setup() {
   Wire.onReceive(receiveFromPi);
 }
 //source: https://forum.arduino.cc/t/convert-ieee-754-32-to-float/323109/2
-
+void loop(){
+    Serial.println(angle);
+}
 
 void receiveFromPi() // this receives the information from the pi about starting program and later angle
 { 
