@@ -7,6 +7,7 @@ import board
 import adafruit_character_lcd.character_lcd_rgb_i2c as character_lcd
 import threading
 import queue
+import cv2
 import cv2.aruco as aruco
 import numpy as np
 
@@ -94,7 +95,7 @@ state_dictionary = { #making the state dictionary for my code.
     stateD : "Sending",
     stateE : "PI Finished"
 }
-state = stateA
+state = stateD #make this start in stateA for the actuall program. state D for i2c send check
 
 
 
@@ -214,10 +215,13 @@ while state is not stateE:
 
         #based on our xCenter, we get The aruco angle
         angle = Get_Angle(xCenter)
+        
         #that was all this state needed to do
         
     #if we are in this state, angle has been calculated, so we just need to send to arduino
     elif state is stateD:
+        angle = 27.5 #this is just a test thing
+
         #got this code from this website: https://stackoverflow.com/questions/33451800/decimal-to-binary-half-precision-ieee-754-in-python
         #np.float16(angle) converts our calculated angle to IEEE 754 half precision format
         #.view("H") treats the float we made as an unsigned integer of 16 bits. Otherwise it may be treated differently
