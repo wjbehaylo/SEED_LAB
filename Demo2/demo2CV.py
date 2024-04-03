@@ -79,11 +79,11 @@ def stateB(ids):
 
 #this state ends with calculating the angle, meaning that regardless it will send the angle. 
 def stateC():
-    
+    return stateD
     
 #this state just sends the angle and transitions us to the next one
 def stateD():
-    
+    return stateE
     
 #this state just signifies that the program is done. It won't ever really do anything, since it won't be called after it is set
 def stateE():
@@ -164,6 +164,8 @@ while state is not stateE:
         '''
         #all that will happen here is telling the arduino to start looking/spinning
         success = 0 #sending a 0, since our program can run!
+        offset_success = 0
+        i2c_arduino.write_byte_data(ARD_ADDR, offset_success, success)
         #then it will put is in the detecting state
         
         
@@ -174,6 +176,12 @@ while state is not stateE:
                 print("error capturing frame") #this just checks if we successfully found it
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) #convert to grayscale
         corners, ids, _ = aruco.detectMarkers(gray, aruco_dict, parameters=parameters) #search for ids
+        
+        #uncomment this if you want to output the image of what's happening. It slows us down though.
+        cv2.imshow('Frame',frame)
+        key = cv2.waitKey(1)
+        if (key == ord('q')):
+            break
         
         
     #if we are in this state, we must have successfully found at least one marker
@@ -227,9 +235,13 @@ while state is not stateE:
         byte2_val = int(byte2, 2) #this will also be an integer
         
         data = [byte1_val, byte2_val] #the data to be sent
-        offset_data = 1 #we want to write to the second register I believe. Just arbitrary though
-        #this means that 
-        i2c_arduino.write_i2c_block_data
+        offset_data = 1 #we want to write to the second register I believe, and the other thing (spin start) will go to the first. Just arbitrary though
+        #send the data
+        try:
+            #ask arduino to take encoder reading
+            i2c_arduino.write_i2c_block_data(ARD_ADDR, offset_data, data)
+        except IOError:
+            print("Could not write data to the arduino")
         
 
     
@@ -237,64 +249,6 @@ while state is not stateE:
     new_state = state()
     state = new_state
         
-        
-while True:
-    time.sleep(0.1) #this is so that we don't over-capture aruco angle
-    ret,frame = cap.read()
-    if not ret:
-            print("error capturing frame")
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    corners, ids, _ = aruco.detectMarkers(gray, aruco_dict, parameters=parameters) #this is taking the most time, idk why
-
-    #We only care about the x pixel of the center for now, but I am recording y just in case
-    if ids is not None:
-        
-        
-        #xWidth is the top right x - top left x + bottom right x - bottom left x.
-        #I decided to add in the top and bottom and take the average in case there is any tangential distortion
-        xWidth = (corners[0][0][1][0] - corners[0][0][0][0] + corners[0][0][2][0] - corners[0][0][3][0])/2
-
-        #yWidth should be bottom left y minus top left y + bottom right y 0 top right y /2
-        yWidth = (corners[0][0][3][1] - corners[0][0][0][1] + corners[0][0][2][1] - corners[0][0][1][1])/2
-
-        
-        #Here we are using the equation F = (P x D)/W
-        #P is going to be the width, D is the distance we place it at initially, (1 meter or 100 cm), W is the size (14.4 cm)
-        Fx = (xWidth * 100)/(5)
-        Fy = (yWidth * 100)/(5)
-        #print(f"Focal length x is: {Fx}") #x is 650, y is 635
-        #print(f"Focal length y is: {Fy}")
-
-        #x center is top right + bottom right /2 (to get the average right most coord) - xWidth/2 to get
-        xCenter = int((corners[0][0][1][0] + corners[0][0][2][0])/2 - xWidth/2)
-        #y center is bottom left + bottom_right/2 - yWidth/2
-        yCenter = int((corners[0][0][3][1] + corners[0][0][2][1])/2 - yWidth/2)
-
-        #based on our xCenter, we get The aruco angle
-        angle = Get_Angle(xCenter)
-        
-        #this commented is just change in angle stuff we were using to speed up our output at one point
-        '''
-        if(angle > last_angle+0.5 or angle < last_angle-0.5):
-            Q.put("{:.3f}".format(angle))
-        last_angle = angle
-        '''
-        #this should draw a cross over the center of the aruco
-        cv2.line(frame, (xCenter,yCenter),(xCenter,yCenter), (0,255,0),5)
-        #cv2.line(frame, (xCenter-1, yCenter),(xCenter + 1,yCenter), (0,255,0),1)
-
-        
-        #This distance is alright, however it only works for looking at it the marker straight on
-        '''DistanceX = (650 * 14.4)/xWidth
-        DistanceY = (635 * 14.4)/yWidth
-        print(f"Distance calculated with Fx is: {DistanceX}")
-        print(f"Distance calculated with Fy is: {DistanceY}")
-        break
-        '''
-    cv2.imshow('Frame',frame)
-    key = cv2.waitKey(1)
-    if (key == ord('q')):
-        break
-
+#this is what happens after we enter into stateE, since we exit the loop
 cap.release()
 cv2.destroyAllWindows()
