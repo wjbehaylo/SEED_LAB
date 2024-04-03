@@ -6,7 +6,7 @@
 #include <Wire.h>
 
 //////// defines ////////
-#define DEBUG 1
+#define DEBUG 0
 #define PI 3.1416
 #define CW 0 // clockwise
 #define CCW 1 // counterclockwise
@@ -38,6 +38,8 @@
 // control:
 #define DIFFINC 1.28 // desired position difference increment (ticks)
 #define BASEINC 1.28 // desired position base increment (ticks)
+// i2c:
+#define MY_ADDR 8
 
 //////// variables ////////
 typedef enum {LISTEN, STEPS, CIRCLE, DONE} state;
@@ -95,8 +97,16 @@ float amperage[2]; // motor amps
 // i2c:
 volatile uint8_t offset = 0;
 volatile uint8_t instruction[32] = {0};
-volatile uint8_t reply = 0;
 volatile uint8_t msgLength = 0;
+volatile uint8_t start = 0;
+volatile uint8_t angle_received = 0;
+volatile float angle = 0;
+
+volatile union FloatUnion 
+{
+  uint8_t bytes[4];
+  float floatValue;
+} angle_convert;
 
 //////// headers ////////
 int ticks2milim();
@@ -124,8 +134,12 @@ void setup()
   digitalWrite(M2DIR, 1); // set motor voltage direction
   analogWrite(M1PWM, 0); // set motor voltage magnitude
   analogWrite(M2PWM, 0); // set motor voltage magnitude
-  //// communication ////
+  //// uart ////
   Serial.begin(2000000); // set UART bits per second
+  //// i2c ////
+  Wire.begin(MY_ADDR); // initialise
+  Wire.onRequest(requestFromPi);
+  Wire.onReceive(receiveFromPi);
   //// interrupts ////
   attachInterrupt(digitalPinToInterrupt(CLK1), clk1Change, CHANGE);
   attachInterrupt(digitalPinToInterrupt(CLK2), clk2Change, CHANGE);
@@ -138,8 +152,7 @@ void setup()
 void loop() 
 {
   //// variables //// 
-  static state setState = CIRCLE; 
-  float requestedAngle = 0;
+  static state setState = LISTEN; 
   // display:
   long time = millis();
   static long printtime = 0; // previous print time (ms)
@@ -148,22 +161,30 @@ void loop()
   switch(setState)
   {
     case LISTEN:
-      if(ctrlBusy == 0) // if not controling
+      if(start)
       {
-        resetCtrl();
-        maxVolt = 2;
-        setK(18, 8, 180, 3, 0.0008, 0.002);
-        setAngle = 360;
-        setPositionDiff = rotdeg2ticks(setAngle);
-        setPositionBase = feet2ticks(setPosition);
-        ctrlBusy = 1;
-      }
-      if(Wire.available())
-      {
-        //requestedAngle = receiveFromPi();
-        setK(0, 0, 0, 0, 0, 0); // disable control
-        ctrlBusy = 0;
-        setState = STEPS;
+        if(ctrlBusy == 0) // if not controling
+        {
+          resetCtrl();
+          maxVolt = 2;
+          setK(18, 8, 180, 3, 0.0008, 0.002);
+          setAngle = 3600;
+          setPositionDiff = rotdeg2ticks(setAngle);
+          setPositionBase = feet2ticks(setPosition);
+          ctrlBusy = 1;
+        }
+        if(angle_received)
+        {
+          setK(0, 0, 0, 0, 0, 0); // disable control
+          setAngle = actualAngle;
+          setPositionDiff = actualPositionDiff;
+          desiredPositionDiff = setPositionDiff;
+          // setPosition = 0;
+          // setPositionBase = 0;
+          // desiredPositionBase = 0;
+          ctrlBusy = 0;
+          setState = STEPS;
+        }
       }
       break;
     case STEPS:
@@ -175,19 +196,19 @@ void loop()
             resetCtrl();
             maxVolt = 4;
             setK(18, 8, 180, 3, 0.0008, 0.002);
-            setAngle = actualAngle + requestedAngle;
+            setAngle = setAngle - angle;
             break;
           case 1: // step 2, move 1 foot
             resetCtrl();
             maxVolt = 4;
             setK(180, 1.4, 5, 0.2, 0.002, 0.0008);
-            setPosition = 5;
+            setPosition = setPosition + 5;
             break;
           case 2: // step 3, rotate 90 degrees
             resetCtrl();
             maxVolt = 4;
             setK(18, 8, 180, 3, 0.0008, 0.002);
-            setAngle = 90;
+            setAngle = setAngle - 90;
             break;
           default:
             setState = CIRCLE;
@@ -199,7 +220,7 @@ void loop()
       }
       else if(ctrlBusy == 1) // if controling
       {
-        if(reached(setAngle, actualAngle, 0.1) && reached(setPosition, actualPosition, 0.05) && steady(voltage, 1.1)) // if control has stopped
+        if(reached(setAngle, actualAngle, 0.4) && reached(setPosition, actualPosition, 0.1) && steady(voltage, 1.1)) // if control has stopped
         {
           ctrlStep++;
           ctrlBusy = 0;
@@ -255,7 +276,7 @@ void loop()
     Serial.println("ROBOT");
     Serial.print("state: "); Serial.println(setState);
     Serial.print("reached: "); Serial.print(reached(setAngle, actualAngle, 1)); Serial.print(" "); Serial.print(reached(setPosition, actualPosition, 0.05)); Serial.print(" "); Serial.println(steady(voltage, 0.7));
-    Serial.print("angle: "); Serial.print(setAngle); Serial.print(" degrees (set), "); Serial.print(ticks2rotdeg(desiredPositionDiff)); Serial.print(" degrees (desired), "); Serial.print(actualAngle); Serial.println(" degrees (actual)");
+    Serial.print("angle: "); Serial.print(setAngle); Serial.print(" degrees (set), "); Serial.print(ticks2rotdeg(desiredPositionDiff)); Serial.print(" degrees (desired), "); Serial.print(actualAngle); Serial.print(" degrees (actual), "); Serial.print(angle); Serial.println(" degrees (requested)");
     Serial.print("position: "); Serial.print(setPosition); Serial.print(" feet (set), "); Serial.print(ticks2feet(desiredPositionBase)); Serial.print(" feet (desired), "); Serial.print(actualPosition); Serial.println(" feet (actual)");
     Serial.print("difference error: "); Serial.print(posDiffError); Serial.print("p, "); Serial.print(posDiffIntError); Serial.println("i");
     Serial.print("base error: "); Serial.print(posBaseError); Serial.print("p, "); Serial.print(posBaseIntError); Serial.println("i");
@@ -480,18 +501,37 @@ float rail(float value, float maxValue)
 }
 
 //////// communications ////////
-void receiveFromPi() // this receives the information from the pi in order to make the wheel move
+void receiveFromPi() // this receives the information from the pi about starting program and later angle
 { 
     offset = Wire.read(); //read reads in the first byte of the wire, with the register to write to (after address and write bit since master is writing)
     //until the master decides to stop sending data
+
+    //this will need to be updated as well to fit. 
     while (Wire.available()) 
     {
       instruction[msgLength] = Wire.read(); //read it byte by byte
-      setAngle = instruction[msgLength]; //theoretically here we are just taking the first byte
       msgLength++; // increments the value in the array to move to the next index that is sent from the pi
     }
+
+    //offset = 0 here, not that it matters
+    if (msgLength == 1 && instruction[0] == 0){
+        start=1; //this is a flag to raise to indicate to the arduino that we're ready to start spinning
+    }
+    //offset is 1 here, again, doesn't matter
+    else if (msgLength == 4){
+        angle_convert.bytes[0] = instruction[3];
+        angle_convert.bytes[1] = instruction[2];
+        angle_convert.bytes[2] = instruction[1];
+        angle_convert.bytes[3] = instruction[0];
+        angle = angle_convert.floatValue;
+        angle_received = 1; //this is the flag that is raised to tell the controls team to change its state to rotating to a specific angle
+
+    }
+    msgLength = 0; //reset it here, since we use it already?
+    //not sure how to implement, but if offset = 0, start spinning
+    //if offset = 1, then the next 2 bytes are the angle. Figure out how to decode it or whatever
 }
-void requestFromPi() // this sends the information that we need to the pi i dont think this is used until later
+void requestFromPi() // this sends the information that we need to the pi i dont think this is used until later. Could be useful for acks, if we need those
 {
     offset = Wire.read(); //read reads in the first byte of the wire, with the register to write to (after address and write bit since master is writing)
     //until the master decides to stop sending data
@@ -527,5 +567,5 @@ float rad2ticks(float rad) {return(rad * (TPR / PI));} // converts radians to ti
 float rad2milim(float rad) {return(rad * (WHEELDIAMETER * PI));} // converts radians to milimeters
 float milim2rad(float mm) {return(mm / (WHEELDIAMETER * PI));} // converts milimeters to radians
 
-// author: jack martin, jack marley
+// authors: jack martin, jack marley, walter behaylo, holden drew
 // date: 3/29/2024
