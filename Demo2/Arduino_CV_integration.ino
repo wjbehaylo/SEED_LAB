@@ -3,11 +3,15 @@
 
 #include <Wire.h>
 #define MY_ADDR 8
+
 // Global variables to be used for I2C communication
 volatile uint8_t offset = 0;
 volatile uint8_t instruction[32] = {0};
+volatile float angle;
 volatile uint8_t reply = 0;
 volatile uint8_t msgLength = 0;
+volatile uint8_t start = 0;
+volatile uint8_t convert = 0;
 
 void setup() {
   Serial.begin(115200);
@@ -19,6 +23,14 @@ void setup() {
   Wire.onReceive(receiveFromPi);
 }
 
+//I'm not super sure where to put the conversion, I think it might be bad to put it in receiveFromPi since its an interrupt
+void convert_to_angle(){
+    if(convert == 1){
+
+        convert = 0;
+    }
+}
+
 void receiveFromPi() // this receives the information from the pi about starting program and later angle
 { 
     offset = Wire.read(); //read reads in the first byte of the wire, with the register to write to (after address and write bit since master is writing)
@@ -28,11 +40,16 @@ void receiveFromPi() // this receives the information from the pi about starting
     while (Wire.available()) 
     {
       instruction[msgLength] = Wire.read(); //read it byte by byte
-      quadrant = instruction[msgLength]; //theoretically here we are just taking the first byte
       msgLength++; // increments the value in the array to move to the next index that is sent from the pi
       Serial.print(quadrant); // debug staement to prove we are receiving the correct quadrant 
     }
-
+    if (msgLength == 1 && msg[0] == 0){
+        start=1;
+    }
+    else if (msgLength == 2){
+        convert = 1;
+    }
+    msgLength = 0; //reset it here, since we use it already?
     //not sure how to implement, but if offset = 0, start spinning
     //if offset = 1, then the next 2 bytes are the angle. Figure out how to decode it or whatever
 }

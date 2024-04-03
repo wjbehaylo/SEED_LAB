@@ -16,7 +16,8 @@ def Get_Angle(xCenter):
 
 #Not sure if this is necessary for this portion
 #I am going to comment it out for simplicity
-# def LCD_Display():
+'''
+def LCD_Display():
     #initializing the LCD and the LCD connections to the pi
     lcd_columns = 16
     lcd_rows = 2
@@ -35,19 +36,15 @@ def Get_Angle(xCenter):
             lcd.cursor_position(0,1) #faster/prettier part 2. Only change second row
             
             angle = Q.get()
-            #I've decided to take this out for now because it wasn't really working
-            '''
-            if(quadrant == -1):
-                output = "No aruco :("            
-            else:
-            '''
+            
+            
             output = str(angle) 
             #print(output) #I may comment this out if it slows down program
             #starttime = time.time()
             lcd.message = output
             #endtime = time.time()
             #print("lcd message time: ", endtime - starttime)
-
+'''
 
 #honestly I (walter) just made the state machine because I think it will be important for the final demo. 
 # Here, the only state that will be gone through again is "searching"
