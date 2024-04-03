@@ -95,7 +95,7 @@ state_dictionary = { #making the state dictionary for my code.
     stateD : "Sending",
     stateE : "PI Finished"
 }
-state = stateD #make this start in stateA for the actuall program. state D for i2c send check
+state = stateA #make this start in stateA for the actuall program. state D for i2c send check
 
 
 
@@ -123,6 +123,7 @@ i2c_arduino = SMBus(1)
 cap = cv2.VideoCapture(0) #initializes camera channel
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280) #set width 
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720) #set height
+cap.set(cv2.CAP_PROP_EXPOSURE, -14)
 aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_6X6_50) #we're considering 50 of the 6x6 aruco markers
 parameters = aruco.DetectorParameters() #sets parameters (for later use)
 time.sleep(0.5) #allows time for initialization
@@ -134,6 +135,13 @@ corners = None
 angle = None
 
 while state is not stateE:
+    '''
+    ret, frame = cap.read()
+    cv2.imshow('Frame',frame)
+    key = cv2.waitKey(1)
+    if (key == ord('q')):
+        break
+    '''
     #we check to see what state we are in, and based on that, do stuff
     #comment this in for debugging
     #print(state_dictionary[state]) 
@@ -178,12 +186,7 @@ while state is not stateE:
         corners, ids, _ = aruco.detectMarkers(gray, aruco_dict, parameters=parameters) #search for ids
         
         #uncomment this if you want to output the image of what's happening. It slows us down though.
-        '''
-        cv2.imshow('Frame',frame)
-        key = cv2.waitKey(1)
-        if (key == ord('q')):
-            break
-        '''
+        
         
         
     #if we are in this state, we must have successfully found at least one marker
@@ -220,7 +223,7 @@ while state is not stateE:
         
     #if we are in this state, angle has been calculated, so we just need to send to arduino
     elif state is stateD:
-        angle = 27.5 #this is just a test thing
+
 
         #got this code from this website: https://stackoverflow.com/questions/33451800/decimal-to-binary-half-precision-ieee-754-in-python
         #np.float16(angle) converts our calculated angle to IEEE 754 half precision format
@@ -254,7 +257,7 @@ while state is not stateE:
             i2c_arduino.write_i2c_block_data(ARD_ADDR, offset_data, data)
         except IOError:
             print("Could not write data to the arduino")
-        
+        print(angle)
 
     
     #this is our state transition. Various states have different things they consider, so instead of setting up their inputs I make them global
