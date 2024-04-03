@@ -67,7 +67,7 @@ def stateA():
     
     
 #in this state we just see if we have detected a marker in main or not
-def stateB(ids):
+def stateB():
         if ids is not None: #if we have found anything
             #then we move to the next state, where we are calculating the angle it is at. The datapath then also sends this data
             return stateC
@@ -221,17 +221,23 @@ while state is not stateE:
         #taking the result from [2:] gets rid of the first bits, which are going to be 0b
         #.zfill(16) pads the string with zeros to make sure its 16 bits long.
         # .zfill(16) is necessary because If the number was represented with many 0s at the start, bin() would shrink them down likely
-        IEEE_754_Value = bin(np.float16(angle).view("H"))[2:].zfill(16) #this is the message as a string that can be printed
-        print("Value in bits:")
+        IEEE_754_Value = bin(np.float32(angle).view("I"))[2:].zfill(32)
         print(IEEE_754_Value)
-        
-        #however, we want it as 2 bytes, so I split it up into 2 bytes
-        byte1 = IEEE_754_Value[:8] #first 8 bits (0-7)
-        byte2 = IEEE_754_Value[8:] #bits 8 - 15, last 8 bits
+
+        byte1 = IEEE_754_Value[:8]
+        byte2 = IEEE_754_Value[8:16]
+        byte3 = IEEE_754_Value[16:24]
+        byte4 = IEEE_754_Value[24:]
+        print(byte1)
+        print(byte2)
+        print(byte3)
+        print(byte4)
         byte1_val = int(byte1, 2) #this will store it as an integer
         byte2_val = int(byte2, 2) #this will also be an integer
-        
-        data = [byte1_val, byte2_val] #the data to be sent
+        byte3_val = int(byte3, 2)
+        byte4_val = int(byte4, 2)
+                
+        data = [byte1_val, byte2_val, byte3_val, byte4_val] #the data to be sent
         offset_data = 1 #we want to write to the second register I believe, and the other thing (spin start) will go to the first. Just arbitrary though
         #send the data
         try:

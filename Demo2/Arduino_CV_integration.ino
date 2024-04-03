@@ -7,11 +7,16 @@
 // Global variables to be used for I2C communication
 volatile uint8_t offset = 0;
 volatile uint8_t instruction[32] = {0};
-volatile float angle;
 volatile uint8_t reply = 0;
 volatile uint8_t msgLength = 0;
 volatile uint8_t start = 0;
-volatile uint8_t convert = 0;
+volatile uint8_t angle_received = 0;
+volatile float angle = 0;
+
+volatile union FloatUnion {
+    uint8_t bytes[4];
+    float floatValue;
+} angle_convert;
 
 void setup() {
   Serial.begin(115200);
@@ -22,14 +27,8 @@ void setup() {
   Wire.onRequest(requestFromPi);
   Wire.onReceive(receiveFromPi);
 }
+//source: https://forum.arduino.cc/t/convert-ieee-754-32-to-float/323109/2
 
-//I'm not super sure where to put the conversion, I think it might be bad to put it in receiveFromPi since its an interrupt
-void convert_to_angle(){
-    if(convert == 1){
-
-        convert = 0;
-    }
-}
 
 void receiveFromPi() // this receives the information from the pi about starting program and later angle
 { 
@@ -43,11 +42,20 @@ void receiveFromPi() // this receives the information from the pi about starting
       msgLength++; // increments the value in the array to move to the next index that is sent from the pi
       Serial.print(quadrant); // debug staement to prove we are receiving the correct quadrant 
     }
+
+    //offset = 0 here, not that it matters
     if (msgLength == 1 && msg[0] == 0){
         start=1;
     }
-    else if (msgLength == 2){
-        convert = 1;
+    //offset is 1 here, again, doesn't matter
+    else if (msgLength == 4){
+        angle_convert.bytes[0] = instruction[3];
+        angle_convert.bytes[1] = instruction[2];
+        angle_convert.bytes[2] = instruction[1];
+        angle_convert.bytes[3] = instruction[0];
+        angle = angle_convert.floatValue;
+        angle_received = 1;
+
     }
     msgLength = 0; //reset it here, since we use it already?
     //not sure how to implement, but if offset = 0, start spinning
