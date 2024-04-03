@@ -7,7 +7,6 @@
 // Global variables to be used for I2C communication
 volatile uint8_t offset = 0;
 volatile uint8_t instruction[32] = {0};
-volatile uint8_t reply = 0;
 volatile uint8_t msgLength = 0;
 volatile uint8_t start = 0;
 volatile uint8_t angle_received = 0;
@@ -40,12 +39,11 @@ void receiveFromPi() // this receives the information from the pi about starting
     {
       instruction[msgLength] = Wire.read(); //read it byte by byte
       msgLength++; // increments the value in the array to move to the next index that is sent from the pi
-      Serial.print(quadrant); // debug staement to prove we are receiving the correct quadrant 
     }
 
     //offset = 0 here, not that it matters
     if (msgLength == 1 && msg[0] == 0){
-        start=1;
+        start=1; //this is a flag to raise to indicate to the arduino that we're ready to start spinning
     }
     //offset is 1 here, again, doesn't matter
     else if (msgLength == 4){
@@ -54,7 +52,7 @@ void receiveFromPi() // this receives the information from the pi about starting
         angle_convert.bytes[2] = instruction[1];
         angle_convert.bytes[3] = instruction[0];
         angle = angle_convert.floatValue;
-        angle_received = 1;
+        angle_received = 1; //this is the flag that is raised to tell the controls team to change its state to rotating to a specific angle
 
     }
     msgLength = 0; //reset it here, since we use it already?
@@ -72,5 +70,4 @@ void requestFromPi() // this sends the information that we need to the pi i dont
       instruction[0] = Wire.read(); //read it byte by byte
       msgLength++;
     }
-    quadrant = instruction[0]; //theoretically here we are just taking the first byte
 }

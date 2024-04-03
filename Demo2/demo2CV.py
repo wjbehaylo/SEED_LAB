@@ -11,7 +11,7 @@ import cv2.aruco as aruco
 import numpy as np
 
 def Get_Angle(xCenter):
-    angle = (xCenter -640)/640 * 31 #this 31 will have to change
+    angle = (xCenter -640)/640 * 30.7 #this 30.7 will have to change
     return angle
 
 #Not sure if this is necessary for this portion
@@ -134,6 +134,8 @@ angle = None
 
 while state is not stateE:
     #we check to see what state we are in, and based on that, do stuff
+    #comment this in for debugging
+    #print(state_dictionary[state]) 
     if state is stateA:
         #right now it is initialized outside the machine, so this isn't necessary
         '''
@@ -175,10 +177,12 @@ while state is not stateE:
         corners, ids, _ = aruco.detectMarkers(gray, aruco_dict, parameters=parameters) #search for ids
         
         #uncomment this if you want to output the image of what's happening. It slows us down though.
+        '''
         cv2.imshow('Frame',frame)
         key = cv2.waitKey(1)
         if (key == ord('q')):
             break
+        '''
         
         
     #if we are in this state, we must have successfully found at least one marker
@@ -222,18 +226,19 @@ while state is not stateE:
         #.zfill(16) pads the string with zeros to make sure its 16 bits long.
         # .zfill(16) is necessary because If the number was represented with many 0s at the start, bin() would shrink them down likely
         IEEE_754_Value = bin(np.float32(angle).view("I"))[2:].zfill(32)
-        print(IEEE_754_Value)
+        #print(IEEE_754_Value)
 
         byte1 = IEEE_754_Value[:8]
         byte2 = IEEE_754_Value[8:16]
         byte3 = IEEE_754_Value[16:24]
         byte4 = IEEE_754_Value[24:]
-        print(byte1)
-        print(byte2)
-        print(byte3)
-        print(byte4)
-        byte1_val = int(byte1, 2) #this will store it as an integer
-        byte2_val = int(byte2, 2) #this will also be an integer
+        #print(byte1)
+        #print(byte2)
+        #print(byte3)
+        #print(byte4)
+        #this converts the 8 characters into an integer, using 2 for the base
+        byte1_val = int(byte1, 2) 
+        byte2_val = int(byte2, 2) 
         byte3_val = int(byte3, 2)
         byte4_val = int(byte4, 2)
                 
