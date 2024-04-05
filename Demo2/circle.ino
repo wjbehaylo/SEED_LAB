@@ -199,7 +199,7 @@ void loop()
           case 0: // step 1, rotate to requested angle
             resetCtrl();
             maxVolt = 4;
-            setThresh(2, 0.4);
+            setThresh(1, 0.4);
             setK(34, 8, 100, 3, 0.001, 0.002);
             setAngle = setAngle - angle;
             break;
@@ -208,14 +208,14 @@ void loop()
             maxVolt = 7;
             setThresh(1, 0.4);
             setK(60, 1.4, 48, 0.2, 0.002, 0.001);
-            setPosition = setPosition + 6.5;
+            setPosition = setPosition + 6.2;
             break;
           case 2: // step 3, rotate 90 degrees
             resetCtrl();
             maxVolt = 4;
-            setThresh(0, 0);
-            setK(0, 0, 0, 0, 0, 0);
-            setState = DONE;
+            setThresh(1, 0.1);
+            setK(34, 8, 70, 3, 0.001, 0.002);
+            setAngle = setAngle - 90;
             break;
           default:
             setState = CIRCLE;
@@ -239,9 +239,9 @@ void loop()
       {
         maxVolt = 7;
         setK(18, 2, 18, 2, 0.002, 0.002);
-        desiredVelocityDiff = 0;
+        desiredVelocityDiff = 2000;
         desiredVelocityBase = 4000;
-        fullCircleTicks = ticks[1] + feet2ticks(6.5);
+        fullCircleTicks = ticks[1] + 11200;
         ctrlBusy = 1;
       }
       if(reached(ticks[1], fullCircleTicks, 10)) 
