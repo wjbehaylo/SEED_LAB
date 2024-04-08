@@ -134,14 +134,10 @@ ids = None
 corners = None
 angle = None
 
+input("Press any key to continue:") #uncomment this for potential speed up
+
 while state is not stateE:
-    '''
-    ret, frame = cap.read()
-    cv2.imshow('Frame',frame)
-    key = cv2.waitKey(1)
-    if (key == ord('q')):
-        break
-    '''
+        
     #we check to see what state we are in, and based on that, do stuff
     #comment this in for debugging
     #print(state_dictionary[state]) 
