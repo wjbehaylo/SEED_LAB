@@ -94,7 +94,7 @@ state_dictionary = { #making the state dictionary for my code.
     stateD : "Sending",
     stateE : "PI Finished"
 }
-state = stateA
+state = stateA #make this start in stateA for the actuall program. state D for i2c send check
 
 
 
