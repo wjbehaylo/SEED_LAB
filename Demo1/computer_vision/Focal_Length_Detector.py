@@ -35,7 +35,7 @@ while True:
         #I decided to add in the top and bottom and take the average in case there is any tangential distortion
         xWidth = (corners[0][0][1][0] - corners[0][0][0][0] + corners[0][0][2][0] - corners[0][0][3][0])/2
 
-        #yWidth should be bottom left y minus top left y + bottom right y 0 top right y /2
+        #yWidth should be bottom left y minus top left y + bottom right y - top right y /2
         yWidth = (corners[0][0][3][1] - corners[0][0][0][1] + corners[0][0][2][1] - corners[0][0][1][1])/2
 
         #Here we are using the equation F = (P x D)/W
