@@ -52,11 +52,14 @@ def LCD_Display():
 #States:
 # A: initialize
 #       where the program starts, starting camera, establishing I2C connection with Arduino
+
+# B: find closest marker
 # B: searching for marker
 #       This state is when the robot has started rotating
 #       It searches/rotates until the marker is found, then exiting the state
-# C: marker found
-#       Once the marker is found, we need to do the math to figure out what angle it is at from the robot, and send that angle
+# C: next marker found
+#       Once the marker is found, we need to do the math to figure out what angle it is at from the robot, find the distance, 
+#       and send that angle and distance to the arduino team. We may end up corrected angle...
 # D: end
 #       Data has been sent, our program is done running
 
@@ -74,7 +77,7 @@ def stateB():
         else:
             return stateB #if it isn't found, we maintain the same state
 
-#this state ends with calculating the angle, meaning that regardless it will send the angle. 
+#this state ends when angle and distance have been calculated, so it will then send it all
 def stateC():
     return stateD
     

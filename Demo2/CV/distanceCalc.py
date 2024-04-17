@@ -43,17 +43,79 @@ while True:
         #print(f"Focal length y is: {Fy}")
 
 
-        #This distance is alright, however it only works for looking at it the marker straight on
-        DistanceX = (650 * 14.4)/xWidth
-        DistanceY = (635 * 14.4)/yWidth 
-        print(f"Distance calculated with Fx is: {DistanceX}")
-        print(f"Distance calculated with Fy is: {DistanceY}")
-        break
-    cv2.imshow('Frame',frame)
-    key = cv2.waitKey(1)
-    if (key == ord('q')):
-        break
 
-cap.release()
-cv2.destroyAllWindows()
+
+
+
+
+()
     
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
