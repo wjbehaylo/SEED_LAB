@@ -42,13 +42,13 @@ while True:
         #P is going to be the width, D is the distance we place it at initially, (1 meter or 100 cm), W is the size (14.4 cm)
         Fx = (xWidth * 100)/(5)
         Fy = (yWidth * 100)/(5)
-        print(f"Focal length x is: {Fx}") #x is 650, y is 635
+        print(f"Focal length x is: {Fx}") #x is 1110 and y is 1110 for a 5 cm by 5 cm aruco
         print(f"Focal length y is: {Fy}")
         
 
         #This distance is alright, however it only works for looking at it the marker straight on
-        DistanceX = (650 * 14.4)/xWidth
-        DistanceY = (635 * 14.4)/yWidth 
+        DistanceX = (1110 * 5)/xWidth
+        DistanceY = (1110 * 5)/yWidth 
         print(f"Distance calculated with Fx is: {DistanceX}")
         print(f"Distance calculated with Fy is: {DistanceY}")
         break
