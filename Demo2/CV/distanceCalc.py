@@ -45,8 +45,6 @@ while True:
         #print(f"Focal length y is: {Fy}")
         
 
-<<<<<<< HEAD
-=======
         #This distance is alright, however it only works for looking at it the marker straight on
         DistanceX = (1110 * 5)/xWidth
         DistanceY = (1110 * 5)/yWidth 
@@ -57,7 +55,6 @@ while True:
     key = cv2.waitKey(1)
     if (key == ord('q')):
         break
->>>>>>> 01155c554047f663ab5ea028cbe375f090235037
 
 
 

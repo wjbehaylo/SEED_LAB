@@ -97,8 +97,8 @@ while True:
         
         #Here we are using the equation F = (P x D)/W
         #P is going to be the width, D is the distance we place it at initially, (1 meter or 100 cm), W is the size (14.4 cm)
-        Fx = (xWidth * 100)/(5)
-        Fy = (yWidth * 100)/(5)
+        Fx = (xWidth * 1110)/(5)
+        Fy = (yWidth * 1110)/(5)
         #print(f"Focal length x is: {Fx}") #x is 650, y is 635
         #print(f"Focal length y is: {Fy}")
 
