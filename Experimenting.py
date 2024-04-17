@@ -8,8 +8,6 @@ import cv2
 import cv2.aruco as aruco
 import numpy as np
 
-#This file is 
-
 
 #this function will take in the xCenter we detect and output the angle that it is at
 def Get_Angle(xCenter):
