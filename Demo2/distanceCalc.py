@@ -14,9 +14,11 @@ import numpy as np
 
 
 cap = cv2.VideoCapture(0) #initializes camera channel
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+cap.set(cv2.CAP_PROP_EXPOSURE, -14)
 aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_6X6_50) #we're considering 50 of the 6x6 aruco markers
 parameters = aruco.DetectorParameters()
-old_quadrant = 4 #this is initialization for old_quadrant, which will help to see when quadrant changes. 4 represents no other state, so change will happen 
 time.sleep(0.5)
 
 while True:
@@ -37,15 +39,15 @@ while True:
 
         #Here we are using the equation F = (P x D)/W
         #P is going to be the width, D is the distance we place it at initially, (1 meter or 100 cm), W is the size (14.4 cm)
-        Fx = (xWidth * 100)/(14.4)
-        Fy = (yWidth * 100)/(14.4)
-        #print(f"Focal length x is: {Fx}") #x is 650, y is 635
+        #Fx = (xWidth * 100)/(5)
+        #Fy = (yWidth * 100)/(5)
+        #print(f"Focal length x is: {Fx}") #x is 1110 and y is 1110 for a 5 cm by 5 cm aruco
         #print(f"Focal length y is: {Fy}")
-
+        
 
         #This distance is alright, however it only works for looking at it the marker straight on
-        DistanceX = (650 * 14.4)/xWidth
-        DistanceY = (635 * 14.4)/yWidth 
+        DistanceX = (1110 * 5)/xWidth
+        DistanceY = (1110 * 5)/yWidth 
         print(f"Distance calculated with Fx is: {DistanceX}")
         print(f"Distance calculated with Fy is: {DistanceY}")
         break
@@ -57,3 +59,4 @@ while True:
 cap.release()
 cv2.destroyAllWindows()
     
+
