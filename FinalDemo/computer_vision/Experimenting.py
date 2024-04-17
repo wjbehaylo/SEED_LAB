@@ -12,7 +12,7 @@ import numpy as np
 #this function will take in the xCenter we detect and output the angle that it is at
 def Get_Angle(xCenter):
         #angle = (xCenter - 320)/320 * 30 #this is assuming that our program has 30 degrees on both sides
-        angle = (xCenter - 640)/640 *31
+        angle = (xCenter - 640)/640 *30.7
         return angle
 
 
