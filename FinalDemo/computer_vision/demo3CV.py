@@ -14,6 +14,7 @@ def Get_Angle(xCenter):
     angle = (xCenter -640)/640 * 30.7 #this 30.7 will have to change
     return angle
 
+
 #Not sure if this is necessary for this portion
 #I am going to comment it out for simplicity
 '''
