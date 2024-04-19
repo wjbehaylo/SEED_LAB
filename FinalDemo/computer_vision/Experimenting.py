@@ -77,9 +77,17 @@ while True:
         #based on our xCenter, we get The aruco angle
         angle = Get_Angle(xCenter)
         print(f"Angle calculated is: {angle}")
-        time.sleep(1) #so after we detect one and output angle, we wait a second before repeating
+        #time.sleep(1) #so after we detect one and output angle, we wait a second before repeating
+        dotColor = (255, 0, 255) #dot should be purple (BGR format)
+        lineColor = (0, 255, 0) #line should be green
+        cv2.circle(frame, (xCenter, yCenter), 4, dotColor, -1)
+        cv2.line(frame, (640, 0), (640, 1279), lineColor, thickness=2)
+        #break
+
         
     cv2.imshow('Frame',frame)
     key = cv2.waitKey(1)
+    time.sleep(10)
+    break
     if (key == ord('q')):
         break
