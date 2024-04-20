@@ -10,81 +10,108 @@ import queue
 import cv2.aruco as aruco
 import numpy as np
 
+
 def Get_Angle(xCenter):
     angle = (xCenter -640)/640 * 30.7 #this 30.7 will have to change
     return angle
 
 
-#Not sure if this is necessary for this portion
-#I am going to comment it out for simplicity
-'''
-def LCD_Display():
-    #initializing the LCD and the LCD connections to the pi
-    lcd_columns = 16
-    lcd_rows = 2
-    i2c_lcd = board.I2C()
-
-    lcd = character_lcd.Character_LCD_RGB_I2C(i2c_lcd, lcd_columns, lcd_rows)
-    lcd.clear()
-    lcd.color = [50, 0, 50]
+#this function has inputs of:
+# the angle the aruco is detected at(in degrees, with left being negative)
+# distance that the marker was detected at(in centimeters probably)
+# radius of the circle (centimeters, probably)
+#it will return the angle and distance that we sent to controls, to rotate and move before starting circle again
+#
+def Get_R_Position(theta_sa, R, d_sa):
+    #arcsin returns -pi/2 to pi/2 radians, which will be converted to degrees (multiplied by 180/pi)
     
-    #faster/prettier messages part 1
-    lcd.message= "Angle Detected:"
+    #theta_ra is the angle between the point on the circle we go to, and the line from robot to aruco
+    theta_ra = np.arcsin(R/d_sa) *(180/np.pi)
+    
+    #theta_m is the amount we will have to rotate so we are pointing towards x_r
+    
+    #proof/example
+    #theta_ra will be positive, while theta_sa will likely be negative,
+    #so if we detect it at -30 degrees, and determine that the angle to the point is 15 degrees, 
+    #this will give us -30+15 = -15, which is correct.
+    #because we always rotate left and detect markers on the left (negative side), this will work
+    theta_m = theta_sa + theta_ra
+    
+    #d_sr is the distance we will travel once we have rotated theta_m. To hop in the circle
+    d_sr = np.cos(theta_ra)*d_sa
+    
+    #returns angle and distance in a tuple
+    return (theta_m, d_sr)
+    
 
-    #this should be constantly running simultaneously as the main body
-    while(True):
-        if (not Q.empty()):
-            lcd.cursor_position(0,1) #faster/prettier part 2. Only change second row
-            
-            angle = Q.get()
-            
-            
-            output = str(angle) 
-            #print(output) #I may comment this out if it slows down program
-            #starttime = time.time()
-            lcd.message = output
-            #endtime = time.time()
-            #print("lcd message time: ", endtime - starttime)
-'''
+#
 
-#honestly I (walter) just made the state machine because I think it will be important for the final demo. 
-# Here, the only state that will be gone through again is "searching"
 
 #States:
 # A: initialize
 #       where the program starts, starting camera, establishing I2C connection with Arduino
 
-# B: find closest marker
-# B: searching for marker
-#       This state is when the robot has started rotating
-#       It searches/rotates until the marker is found, then exiting the state
-# C: next marker found
-#       Once the marker is found, we need to do the math to figure out what angle it is at from the robot, find the distance, 
-#       and send that angle and distance to the arduino team. We may end up corrected angle...
-# D: end
-#       Data has been sent, our program is done running
+# B: detect markers in 360 degrees
+#       robot is spinning in a circle, we need to get aruco markers
+#       we will continue to detect until we receive from the arduino, indicating that 360degrees is done
+#       
+
+# C: wait
+#       Data has been sent, we now wait for the arduino to tell us that we are starting to circle/look for markers
+#       We record the number of wait states, and when the seventh one ends we go to 'done'
+
+# D: search
+#       We constantly look for markers as we move around the circle
+#       when they are found we send the data and move back to the wait state
+
+# E: done
+#       Execution completed. Time to turn off camera and stuff
 
 #in stateA, the program will initialize
-#as long as it initializes, the next state becomes searching for marker
+#as long as it initializes, the next state becomes detect markers in 360 degrees
 def stateA():
     return stateB
     
     
-#in this state we just see if we have detected a marker in main or not
+#in this state we are consistently detecting markers, waiting for 'end' from arduino
 def stateB():
-        if ids is not None: #if we have found anything
-            #then we move to the next state, where we are calculating the angle it is at. The datapath then also sends this data
+        global stateDone
+        if stateDone is True: #if  arduino is done spinning
+            stateDone = False #then that state is no longer done since we are transitioning into the next one
+            #then we move to the next state, waiting for circling to start
             return stateC
         else:
-            return stateB #if it isn't found, we maintain the same state
+            return stateB #if arduino
 
-#this state ends when angle and distance have been calculated, so it will then send it all
+#this state ends when arduino sends us that circle is beginning
 def stateC():
-    return stateD
+    #we modify these, so we need to make sure they are globally defined
+    global stateDone 
+    global C_count
+    if stateDone is True: #if the arduino is done moving
+        stateDone = False #state is no longer done
+        #then we are either moving to state D(searching) or state E(done)
+        C_count = C_count +1 #we increment the number of wait states we have done
+        if (C_count == 7): #if we have done 7 of these approaches
+            return stateE #we are done with the program
+        else: #if we haven't approached 7 times
+            return stateD #we keep searching
+        
+    else: #if the state is not done (arduino hasn't sent)
+        return stateC #we are still waiting
     
-#this state just sends the angle and transitions us to the next one
+#this state is the one in which we are rotating around the circle, looking for markers
+#here we are both detecting and sending, so if we get to the state transition and we have detected a marker, we can assume it was sent as well
 def stateD():
-    return stateE
+    if ids is not None: #if we have detected a marker
+        #we first clear the list of detected markers
+        '''
+        Need to do more here for transition logic
+        '''
+        return stateC #we now wait for controls to move
+
+    else: #if we haven't detected a marker, 
+        return stateD #we continue to search
     
 #this state just signifies that the program is done. It won't ever really do anything, since it won't be called after it is set
 def stateE():
@@ -93,21 +120,11 @@ def stateE():
     
 state_dictionary = { #making the state dictionary for my code. 
     stateA : "Initialize",
-    stateB : "Searching",
-    stateC : "Detected",
-    stateD : "Sending",
+    stateB : "360 searching",
+    stateC : "waiting",
+    stateD : "circle searching",
     stateE : "PI Finished"
 }
-state = stateA #make this start in stateA for the actuall program. state D for i2c send check
-
-
-
-#these are the global variables we need. This is how I am currently passing data between states
-ids = None
-corners = None
-angle = None
-#my concern about this right now is just that maybe the data isn't being kept across states. Global variables? Pass them into the states? 
-#I have decided to initialize outside the state machine? I'm not sure about this but otherwise I'd not know how to get the variables
 
 #we need to initialize our program and stuff
 #Arduino Iniialization
@@ -115,27 +132,25 @@ ARD_ADDR = 8
 i2c_arduino = SMBus(1)
 
 
-#thread Initialization. Not necessary as long as we aren't using LCD
-#Q = queue.Queue()
-
-#threadLCD = threading.Thread(target = LCD_Display, args = ())
-#threadLCD.start()
-#time.sleep(1) #gives it a second tin initialize
 
 #camera initialization. Needs to be accessible in all states though
 cap = cv2.VideoCapture(0) #initializes camera channel
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280) #set width 
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720) #set height
-cap.set(cv2.CAP_PROP_EXPOSURE, -14)
+cap.set(cv2.CAP_PROP_EXPOSURE, -14) #set high exposure to detect markers better
 aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_6X6_50) #we're considering 50 of the 6x6 aruco markers
 parameters = aruco.DetectorParameters() #sets parameters (for later use)
 time.sleep(0.5) #allows time for initialization
 # last_angle = 40 #this isn't necessary for now
 
-#these are the global variables we need. This is how I am currently passing this data between states
+#these are the global variables we need. This is how I am currently passing data between states
 ids = None
 corners = None
 angle = None
+stateDone = False
+#I store the data globally so that our program can access it when in different states
+
+state = stateA #make this start in stateA for the actual program. state D for i2c send check
 
 input("Press any key to continue:") #uncomment this for potential speed up
 
@@ -144,54 +159,46 @@ while state is not stateE:
     #we check to see what state we are in, and based on that, do stuff
     #comment this in for debugging
     #print(state_dictionary[state]) 
+    
+    #this line here is to determine if we have received anything from the arduino, since it is important
+    offset = 0 #offset that we will be receiving from...?
+    received=i2c_arduino.read_byte_data(ARD_ADDR, offset) #since the arduino is just sending us something if it should be, we just need to see if it sends anything
+    if received is not None: #if the arduion has sent anything
+        stateDone = True
+    #we can assume that if it doesn't send anything, stateDone will remain false. But just in case, we'll set it
+    else:
+        stateDone = False
+        
     if state is stateA:
         #right now it is initialized outside the machine, so this isn't necessary
-        '''
-        #we need to initialize our program and stuff
-        #Arduino Iniialization
-        ARD_ADDR = 8
-        i2c_arduino = SMBus(1)
-
-
-        #thread Initialization. Not necessary as long as we aren't using LCD
-        #Q = queue.Queue()
-
-        #threadLCD = threading.Thread(target = LCD_Display, args = ())
-        #threadLCD.start()
-        #time.sleep(1) #gives it a second tin initialize
-
-        #camera initialization. Needs to be accessible in all states though
-        cap = cv2.VideoCapture(0) #initializes camera channel
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280) #set width 
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720) #set height
-        aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_6X6_50) #we're considering 50 of the 6x6 aruco markers
-        parameters = aruco.DetectorParameters() #sets parameters (for later use)
-        time.sleep(0.5) #allows time for initialization
-        # last_angle = 40 #this isn't necessary for now
-        '''
+        
         #all that will happen here is telling the arduino to start looking/spinning
         success = 0 #sending a 0, since our program can run!
         offset_success = 0
         i2c_arduino.write_byte_data(ARD_ADDR, offset_success, success)
-        #then it will put is in the detecting state
+        #we have told arduino to start spinning. we will now (soon) move
         
         
-    #if we are in this state, we have initialized the program and are therefore actively searching for a marker
+    #if we are in this state, we have initialized the program and are therefore spinning around
     elif state is stateB:
-        ret,frame = cap.read()
-        if not ret:
-                print("error capturing frame") #this just checks if we successfully found it
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) #convert to grayscale
-        corners, ids, _ = aruco.detectMarkers(gray, aruco_dict, parameters=parameters) #search for ids
+        '''
+        This one is not done and needs to be revisited with logic and distance/angle detection
+        '''
+        #at the beginning of the big while loop, we determine if arduino has sent anything.
+        if stateDone is False: #so we only do this searching if stateDone is false
+            ret,frame = cap.read()
+            if not ret:
+                    print("error capturing frame") #this just checks if we successfully found it
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) #convert to grayscale
+            corners, ids, _ = aruco.detectMarkers(gray, aruco_dict, parameters=parameters) #search for ids
+        #if stateDone is true, then we are just exiting this state. 
+    
         
-        #uncomment this if you want to output the image of what's happening. It slows us down though.
-        
-        
-        
-    #if we are in this state, we must have successfully found at least one marker
-    #we can therefore access the global variable 'corners' to determine the marker's location
-    #might be important to tell the arduino that it has been detected, so there isn't weird time stuff.
+    #if we are in this state, we just need to be waiting for the arduino to send any information
     elif state is stateC: 
+        
+        
+        
         #remember that corners has the first 2 indices to select the marker (in case of 1 marker 0 0)
         # the third index stores which corner, starting at top left and going clockwise tll bottom left. Fourth stores x (0) or y (1)
         #xWidth is the top right x - top left x + bottom right x - bottom left x.
@@ -202,14 +209,7 @@ while state is not stateE:
         yWidth = (corners[0][0][3][1] - corners[0][0][0][1] + corners[0][0][2][1] - corners[0][0][1][1])/2
 
         #this is all for distance detection, which isn't necessary yet. It also might be flawed, considering angle stuff
-        '''
-        #Here we are using the equation F = (P x D)/W
-        #P is going to be the width, D is the distance we place it at initially, in centimeters (1 meter or 100 cm), W is the size (14.4 cm)
-        Fx = (xWidth * 100)/(5)
-        Fy = (yWidth * 100)/(5)
-        #print(f"Focal length x is: {Fx}") #x is 650, y is 635
-        #print(f"Focal length y is: {Fy}")
-        '''
+
 
         #to calculate the average of each of the corner coordinate sets
         xCenter = np.mean(corners[0][0][:, 0]) #mean of all corner x coordinates

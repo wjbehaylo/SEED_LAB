@@ -29,7 +29,7 @@ while(True):
         # Write a byte to the i2c bus
         command = [ord(character) for character in string]
         try:
-            #aask arduino to take encoder reading
+            #ask arduino to take encoder reading
             i2c_arduino.write_i2c_block_data(ARD_ADDR, offset, command)
         except IOError:
             print("Could not write data to the arduino")
