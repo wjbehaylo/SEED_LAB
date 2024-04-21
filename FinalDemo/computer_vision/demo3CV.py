@@ -7,13 +7,14 @@ import board
 import adafruit_character_lcd.character_lcd_rgb_i2c as character_lcd
 import threading
 import queue
+import cv2
 import cv2.aruco as aruco
 import numpy as np
 
 
 def Get_Angle(xCenter):
     #based on our xCenter, we get The aruco angle 
-    angle = (xCenter -640)/640 * 30.7 #this 30.7 will have to change
+    angle = (xCenter -320)/320 * 30.7 #this 30.7 will have to change
     return angle
 
 
@@ -41,23 +42,22 @@ def calculate_distance(marker_corners, marker_size, camera_matrix, dist_coeffs):
 #
 def Get_R_Position(theta_sa, d_sa, R):
     #arcsin returns -pi/2 to pi/2 radians, which will be converted to degrees (multiplied by 180/pi)
-    
-    #theta_ra is the angle between the point on the circle we go to, and the line from robot to aruco
-    theta_ra = np.arcsin(R/d_sa) *(180/np.pi)
-    
-    #theta_m is the amount we will have to rotate so we are pointing towards x_r
-    
-    #proof/example
-    #theta_ra will be positive, while theta_sa will likely be negative,
-    #so if we detect it at -30 degrees, and determine that the angle to the point is 15 degrees, 
-    #this will give us -30+15 = -15, which is correct.
-    #because we always rotate left and detect markers on the left (negative side), this will work
-    theta_m = theta_sa + theta_ra
-    
-    #d_sr is the distance we will travel once we have rotated theta_m. To hop in the circle
-    d_sr = np.cos(theta_ra)*d_sa
-    
+    print("detected angle")
+    print(theta_sa)
+    print("detected distance")
+    print(d_sa)
+    #theta_asr is the angle between aruco, robot, and radius
+    theta_asr = np.arcsin(R/d_sa) * 180/(np.pi)
+    print("theta between aruco, robot, radius")
+    print(theta_asr)
+    d_sr = np.cos(theta_asr*np.pi/180) * d_sa #weird conversion I know, but np.cos takse in radians
     #returns angle and distance in a tuple
+
+    if (abs(theta_sa)>theta_asr):
+        theta_m = abs(theta_sa) - theta_asr
+    else:
+        theta_m = theta_asr -abs(theta_sa)
+    
     return (theta_m, d_sr)
 
 def Generate_IEEE_vector(value):
@@ -123,7 +123,7 @@ def stateB():
             #then we move to the next state, waiting for circling to start
             return stateC
         else:
-            return stateB #if arduino
+            return stateB #if arduino isn't done spinning
 
 #this state ends when arduino sends us that circle is beginning
 def stateC():
@@ -176,15 +176,17 @@ i2c_arduino = SMBus(1)
 
 #camera initialization. Needs to be accessible in all states though
 cap = cv2.VideoCapture(0) #initializes camera channel
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280) #set width 
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720) #set height
+#cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280) #set width. Holden's distance sets it to default
+#cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720) #set height. Default is 720 by 480 I Think
 cap.set(cv2.CAP_PROP_EXPOSURE, -14) #set high exposure to detect markers better
 aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_6X6_50) #we're considering 50 of the 6x6 aruco markers
 parameters = aruco.DetectorParameters() #sets parameters (for later use)
 time.sleep(0.5) #allows time for initialization
 
 #this is the camera matrix and distortion matrix that we calculated
-camera_matrix = np.array([[1302.18142, 0, 757.661523], [0, 1277.72316, 333.541675], [0, 0, 1]])
+camera_matrix = np.array([[1302.18142, 0, 757.661523],
+                          [0, 1277.72316, 333.541675],
+                          [0, 0, 1]])
 dist_coeffs = np.array([-.0501863, .35496149, -.00359878,.02920639,-.68738736])  
 # Marker size in meters, also necessary for distance calculation
 marker_size = 0.025  
@@ -194,8 +196,8 @@ ids = None
 corners = None
 angle = None
 stateDone = False
-C_count = 0 
-radius = 0.5 #radius is 50 cm. This has units of meteres, so we need 0.5 meters
+C_count = 1 #make sure this is zero when we actually run it, 1 for starting at first
+radius = 0.3575 #radius is 50 cm. This has units of meteres, so we need 0.5 meters
 prev_len_ids = 0 #default it to 0 at the beginning
 offset = 0
 #I store the data globally so that our program can access it when in different states
@@ -207,17 +209,9 @@ while state is not stateE:
         
     #we check to see what state we are in, and based on that, do stuff
     #comment this in for debugging
-    #print(state_dictionary[state]) 
+    print(state_dictionary[state]) 
     
-    #this line here is to determine if we have received anything from the arduino, since it is important
-    received=i2c_arduino.read_byte_data(ARD_ADDR, offset) #since the arduino is just sending us something if it should be, we just need to see if it sends anything
-    if received is not None: #if the arduion has sent anything
-        stateDone = True
-    #we can assume that if it doesn't send anything, stateDone will remain false. But just in case, we'll set it
-    else:
-        stateDone = False
-    received = None #clear received after
-        
+     
     #now we enter the state conditionals
     if state is stateA:
         #right now it is initialized outside the machine, so this isn't necessary
@@ -231,6 +225,14 @@ while state is not stateE:
         
     #if we are in this state, we have initialized the program and are therefore spinning around
     elif state is stateB:
+        #this line here is to determine if we have received anything from the arduino, since it is important
+        received=i2c_arduino.read_byte_data(ARD_ADDR, offset) #since the arduino is just sending us something if it should be, we just need to see if it sends anything
+        if received is not None: #if the arduion has sent anything
+            stateDone = True
+        #we can assume that if it doesn't send anything, stateDone will remain false. But just in case, we'll set it
+        else:
+            stateDone = False
+
         
         #at the beginning of the big while loop, we determine if arduino has sent anything.
         if stateDone is False: #so we only do this searching if stateDone is false
@@ -273,7 +275,14 @@ while state is not stateE:
         
     #if we are in this state, we just need to be waiting for the arduino to send any information
     #so nothing actually needs to happen here, all the logic is in the state function pointer itself
-    elif state is stateC: 
+    elif state is stateC:
+        #this line here is to determine if we have received anything from the arduino, since it is important
+        received=i2c_arduino.read_byte_data(ARD_ADDR, offset) #since the arduino is just sending us something if it should be, we just need to see if it sends anything
+        if received is not None: #if the arduion has sent anything
+            stateDone = True
+        #we can assume that if it doesn't send anything, stateDone will remain false. But just in case, we'll set it
+        else:
+            stateDone = False
         pass #there is no code here of any importance
         
         
@@ -281,34 +290,13 @@ while state is not stateE:
         
     #if we are in this state, the robot is moving in a circle and we will be looking to detect new markers
     elif state is stateD:
-        '''
-        #remember that corners has the first 2 indices to select the marker (in case of 1 marker 0 0)
-        # the third index stores which corner, starting at top left and going clockwise tll bottom left. 
-        # Fourth stores x (0) and y (1)
-        #xWidth is the top right x - top left x + bottom right x - bottom left x.
-        #I decided to add in the top and bottom and take the average in case there is any tangential distortion
-        xWidth = (corners[0][0][1][0] - corners[0][0][0][0] + corners[0][0][2][0] - corners[0][0][3][0])/2
-
-        #yWidth should be bottom left y minus top left y + bottom right y 0 top right y /2
-        yWidth = (corners[0][0][3][1] - corners[0][0][0][1] + corners[0][0][2][1] - corners[0][0][1][1])/2
-
-        #this is all for distance detection, which isn't necessary yet. It also might be flawed, considering angle stuff
-
-
-        #to calculate the average of each of the corner coordinate sets
-        xCenter = np.mean(corners[0][0][:, 0]) #mean of all corner x coordinates
-        yCenter = np.mean(corners[0][0][:, 1]) #mean of all corner y coordinates
-
-        #based on our xCenter, we get The aruco angle
-        angle = Get_Angle(xCenter)
-        #that was all this state needed to do
-        '''
+        
         
         ret,frame = cap.read()
         if not ret:
             print("error capturing frame")
         gray = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
-        corners, ids, _ = aruco.detectMarkers(gray,aruco_dict,parameters=parameters)
+        corners, ids, _ = aruco.detectMarkers(frame,aruco_dict,parameters=parameters)
         #for now, we assume that the first marker detected will be the closest one/next. This may not be true
         #When debugging, be sure to stay aware of this
         #to calculate the average of each of the corner coordinate sets
@@ -317,11 +305,17 @@ while state is not stateE:
 
             #based on our xCenter, we get The aruco angle
             angle = Get_Angle(xCenter)
-            _ , tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corners[i], marker_size, camera_matrix, dist_coeffs)
+            for i in range(len(ids)):
+                rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corners[i], marker_size, camera_matrix, dist_coeffs)
             # Calculate distance to the marker, in meters
             distance = np.linalg.norm(tvecs[0])
+            print("distance detected")
+            print(distance)
             theta_m,d_sr = Get_R_Position(angle, distance, radius)
-            
+            print("angle to rotate")
+            print(theta_m)
+            print("distance to move")
+            print(d_sr)
             dist_array = Generate_IEEE_vector(d_sr)
             angle_array= Generate_IEEE_vector(theta_m)
             
@@ -332,11 +326,12 @@ while state is not stateE:
             #send the data
             try:
                 #ask arduino to take encoder reading
+                #This sends the bytes from last to first. 
                 i2c_arduino.write_i2c_block_data(ARD_ADDR, offset_data, data)
             except IOError:
                 print("Could not write data to the arduino")
             #we don't set ids to None here, since we need it to not be none for our state transition logic
-
+            break
     
     
     #we don't need anything for stateE, since we will never actually be in it

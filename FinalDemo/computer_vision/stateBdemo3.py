@@ -23,19 +23,8 @@ dist_coeffs = np.array([-.0501863, .35496149, -.00359878,.02920639,-.68738736]) 
 # Marker size in meters
 marker_size = 0.025  
 
-# Function to calculate distance to ArUco marker
-def calculate_distance(marker_corners, marker_size, camera_matrix, dist_coeffs):
-    # Assuming the marker is a square, so we can take average of width and height
-    marker_length_pixels = np.mean([np.linalg.norm(marker_corners[0][0] - marker_corners[0][1]),
-                                     np.linalg.norm(marker_corners[0][1] - marker_corners[0][2])])
-    
-    # Calculate focal length in pixels
-    focal_length_x = camera_matrix[0, 0]
-    focal_length_y = camera_matrix[1, 1]
-    
-    # Distance calculation
-    distance = (marker_size * focal_length_x) / marker_length_pixels
-    return distance
+
+
 prev_len_ids = 0
 
 while True:
@@ -52,7 +41,7 @@ while True:
                 # Estimate pose of the marker
                 rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corners[i], marker_size, camera_matrix, dist_coeffs)
 
-            # Calculate distance to the marker
+            # Calculate distance to the marker, in meters?
                 distance = np.linalg.norm(tvecs[0])
                 #angle = np.degrees(np.arctan2(tvecs[i][0][0], tvecs[i][0][2]))
             
