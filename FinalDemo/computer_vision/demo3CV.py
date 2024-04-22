@@ -14,7 +14,7 @@ import numpy as np
 
 def Get_Angle(xCenter):
     #based on our xCenter, we get The aruco angle 
-    angle = (xCenter -320)/320 * 30.7 #this 30.7 will have to change
+    angle = (xCenter -640)/640 * 30.7 #this 30.7 will have to change
     return angle
 
 
@@ -176,18 +176,18 @@ i2c_arduino = SMBus(1)
 
 #camera initialization. Needs to be accessible in all states though
 cap = cv2.VideoCapture(0) #initializes camera channel
-#cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280) #set width. Holden's distance sets it to default
-#cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720) #set height. Default is 720 by 480 I Think
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280) #set width. Holden's distance sets it to default
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720) #set height. Default is 720 by 480 I Think
 cap.set(cv2.CAP_PROP_EXPOSURE, -14) #set high exposure to detect markers better
 aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_6X6_50) #we're considering 50 of the 6x6 aruco markers
 parameters = aruco.DetectorParameters() #sets parameters (for later use)
 time.sleep(0.5) #allows time for initialization
 
 #this is the camera matrix and distortion matrix that we calculated
-camera_matrix = np.array([[1302.18142, 0, 757.661523],
-                          [0, 1277.72316, 333.541675],
+camera_matrix = np.array([[1100.16914, 0, 822.431875],
+                          [0, 1099.874175, 501.381015],
                           [0, 0, 1]])
-dist_coeffs = np.array([-.0501863, .35496149, -.00359878,.02920639,-.68738736])  
+dist_coeffs = np.array([-.13395956, 1.44725569, 0.01324846, .04205741, -2.61323609])  
 # Marker size in meters, also necessary for distance calculation
 marker_size = 0.025  
 
