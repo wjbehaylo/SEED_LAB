@@ -311,7 +311,7 @@ while state is not stateE:
 
             #based on our xCenter, we get The aruco angle
             angle = Get_Angle(xCenter)
-            rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corners[i], marker_size, camera_matrix, dist_coeffs)
+            rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corners[0], marker_size, camera_matrix, dist_coeffs)
             # Calculate distance to the marker, in meters
             distance = np.linalg.norm(tvecs[0])
             print("distance detected")
