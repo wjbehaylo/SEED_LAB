@@ -197,9 +197,14 @@ corners = None
 angle = None
 stateDone = False
 C_count = 1 #make sure this is zero when we actually run it, 1 for starting at first
-radius = 0.3575 #radius is 50 cm. This has units of meteres, so we need 0.5 meters
+radius = 0.3575 #radius is 50 cm. This has units of meters, so we need 0.3575 meters
 prev_len_ids = 0 #default it to 0 at the beginning
 offset = 0
+
+#these are the values of the messages that we want from the arduino
+
+ACK_360_DONE = 2
+ACK_MOVE_DONE = 3
 #I store the data globally so that our program can access it when in different states
 state = stateD #make this start in stateA for the actual program. state D for i2c send check
 
@@ -227,7 +232,7 @@ while state is not stateE:
     elif state is stateB:
         #this line here is to determine if we have received anything from the arduino, since it is important
         received=i2c_arduino.read_byte_data(ARD_ADDR, offset) #since the arduino is just sending us something if it should be, we just need to see if it sends anything
-        if received is not None: #if the arduion has sent anything
+        if received == ACK_360_DONE: #if the arduion has sent anything
             stateDone = True
         #we can assume that if it doesn't send anything, stateDone will remain false. But just in case, we'll set it
         else:
@@ -278,7 +283,7 @@ while state is not stateE:
     elif state is stateC:
         #this line here is to determine if we have received anything from the arduino, since it is important
         received=i2c_arduino.read_byte_data(ARD_ADDR, offset) #since the arduino is just sending us something if it should be, we just need to see if it sends anything
-        if received is not None: #if the arduion has sent anything
+        if received == ACK_MOVE_DONE: #if the arduino has sent anything
             stateDone = True
         #we can assume that if it doesn't send anything, stateDone will remain false. But just in case, we'll set it
         else:
