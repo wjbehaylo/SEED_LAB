@@ -44,9 +44,9 @@
 
 // I2C communication address.
 #define MY_ADDR 8 // Address of this device on the I2C bus.
-#define ACK_FIRST_TURN_DONE 2
-#define ACK_SECOND_TURN_DONE 3
-#define ACK_MOVE_COMPLETE 4
+#define ACK_360_TURN_DONE 2 // 360 degree turn done
+#define ACK_90_TURN_DONE 3 // 90 degree turn done 
+#define ACK_MOVE_COMPLETE 4 // 
 
 // state variable to send to PI
 int stateToPi = 1;
@@ -197,6 +197,7 @@ void loop()
             resetCtrl(); // Reset control variables and parameters.
             resetLocal(); // Reset local parameters and variables.
             setAngle = 360;
+            stateToPi = ACK_360_TURN_DONE; /// 360 degree turn done value is 2
             maxVolt = 1.8; // Set maximum voltage for this operation mode.
             setK(18, 8, 180, 3, 0.0008, 0.002); // Set PID gains for control.
             setPositionDiff = rotdeg2ticks(360); // Convert desired angle to tick difference.
@@ -217,7 +218,6 @@ void loop()
         { // Check if current control task is complete.
             setK(0, 0, 0, 0, 0, 0); // Reset PID gains to zero.
             ctrlBusy = 0; // Indicate that control is no longer active.
-            stateToPi = ACK_FIRST_TURN_DONE;
             state = ROTATE; // Transition to MOVE state to approach the marker.
         }
         break;
@@ -260,8 +260,14 @@ void loop()
         if(apCtrlDone(1, 0.4, 1.1)) { // Check if the movement control is completed.
             setK(0, 0, 0, 0, 0, 0); // Reset PID gains to zero.
             ctrlBusy = 0; // Indicate that control is no longer active.
-            stateToPi = ACK_MOVE_COMPLETE;
-            if(markerCount < 7) state = SEARCH; // If more markers to process, go to SEARCH state.
+            if (markerCount == 0) 
+            {
+              setAngle = actualAngle - 90;  
+              setPosition = actualPosition;
+              stateToPi = ACK_90_TURN_DONE;
+              state = ROTATE;
+            }
+            else if(markerCount < 7) state = SEARCH; // If more markers to process, go to SEARCH state.
             else state = DONE; // Otherwise, finish the operation in DONE state.
         }
         break;
@@ -276,12 +282,12 @@ void loop()
             resetLocal(); // Reset local parameters and variables.
             maxVolt = 7; // Set maximum voltage for search mode.
             setK(18, 8, 180, 3, 0.0008, 0.002); // Set PID gains for search mode.
-            desiredVelocityDiff = 1050; // TODO turn into ratio
+            desiredVelocityDiff = 1200; // TODO turn into ratio THIS HAS A RADIUS OF 17CM
             desiredVelocityBase = 1100; // TODO turn into ratio
             float circleFraction = 180; // Define the fraction of the circle to complete (half circle here).
             float desiredDistance = (circleFraction / 360.0) * 7469.660; // Calculate the distance based on circle fraction.
             float requiredTicks = milim2ticks(desiredDistance); // Convert the distance to encoder ticks.
-            
+            stateToPI = ACK_MOVE_COMPLETE; // completed circle 
             ctrlBusy = 1; // Indicate that control operation is now active.
         }
         else if(markerRecived) 
