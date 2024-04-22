@@ -42,9 +42,9 @@
 #define MY_ADDR 8
 
 //////// variables ////////
-typedef enum {WAIt, FULLSEARCH, SEARCH, ROTATE, MOVE, DONE} state;
+typedef enum {WAIT, FULLSEARCH, SEARCH, CIRCLE, MOVE, DONE} state;
 short ctrlBusy = 0; // control is completeing step
-short ctrlStep = 0; // active controller step
+short markerCount = 0; // number of markers found
 long startTime; // loop start time (ms)
 // control:
 float setAngle = 0; // set angle (degrees)
@@ -99,14 +99,18 @@ volatile uint8_t offset = 0;
 volatile uint8_t instruction[32] = {0};
 volatile uint8_t msgLength = 0;
 volatile uint8_t start = 0;
-volatile uint8_t angle_received = 0;
-volatile float angle = 0;
+volatile uint8_t markerRecived = 0;
+volatile float recivedAngle = 0;
+volatile float recivedPosition = 0;
+volatile float markerAngle = 0;
+volatile float markerPosition = 0;
+int flagToPi = 0;
 
 volatile union FloatUnion 
 {
   uint8_t bytes[4];
   float floatValue;
-} angle_convert;
+} byteFloat;
 
 //////// headers ////////
 int ticks2milim();
@@ -162,53 +166,107 @@ void loop()
   switch(setState)
   {
     case WAIT:
-    case FULLSEARCH:
-    case SEARCH:
-    case ROTATE:
-      resetCtrl();
-      maxVolt = 4;
-      setK(34, 8, 100, 3, 0.001, 0.002);
-      setPosition = setPosition - recivedPosition;
-      if(ctrlDone(1, 0.4, 1.1))
+      if(start) state = FULLSEARCH;
       break;
+    case FULLSEARCH: // TODO
+      if(ctrlBusy == 0) // if not controling
+      {
+        resetCtrl();
+        resetLocal();
+        maxVolt = 1.8;
+        setK(18, 8, 180, 3, 0.0008, 0.002);
+        setAngle = 270;
+        setPositionDiff = rotdeg2ticks(setAngle);
+        setPositionBase = feet2ticks(setPosition);
+        ctrlBusy = 1;
+      }
+      if(markerRecived)
+      {
+        if(recivedPosition < markerPosition)
+        {
+          markerAngle = recivedAngle;
+          markerPosition = recivedPosition;
+        }
+        markerRecived = 0;
+      }
+      if(ctrlDone(1, 5, 1.1)) // if control completed
+      {
+        setK(0, 0, 0, 0, 0, 0);
+        ctrlBusy = 0;
+        state = CIRCLE;
+      }
+      break;
+    case CIRCLE: // TODO
+      if(ctrlBusy == 0) // if not controling
+      {
+        resetCtrl();
+        resetLocal();
+        maxVolt = 4;
+        setK(34, 8, 100, 3, 0.001, 0.002);
+        desiredVelocityDiff = 2000; // TODO turn into ratio
+        desiredVelocityBase = 4000; // TODO turn into ratio
+        ctrlBusy = 1;
+      }
+      /*/ 
+       * TODO when to stop circle / when control is completed
+       * from an angle -> to percent of circumfence -> to distance either inner wheel or outer wheel has to move 
+      /*/
     case MOVE:
-      resetCtrl();
-      maxVolt = 4;
-      setK(60, 1.4, 48, 0.2, 0.002, 0.001);
-      setAngle = setAngle - recivedAngle;
+      if(ctrlBusy == 0) // if not controling
+      {
+        resetCtrl();
+        resetLocal();
+        maxVolt = 4;
+        setK(60, 1.4, 48, 0.2, 0.002, 0.001);
+        setPosition = setPosition + markerPosition;
+        setPositionDiff = rotdeg2ticks(setAngle);
+        setPositionBase = feet2ticks(setPosition);
+      }
+      if(apCtrlDone(1, 0.4, 1.1)) // if control completed 
+      {
+        setK(0, 0, 0, 0, 0, 0);
+        ctrlBusy = 0;
+        
+        if(markerCount < 7) state = ACK;
+        else state = DONE;
+      }
       break;
     case ACK:
+      flagToPi = 1 // set flag high that we are waiting for them to search again
+      sendAckToPi(); // function call
+      state = SEARCH; // sends state to search 
+      break;
+    case SEARCH: // TODO
+      if(ctrlBusy == 0) // if not controling
+      {
+        // settup control:
+        resetCtrl();
+        resetLocal();
+        maxVolt = 1.8;
+        setK(18, 8, 180, 3, 0.0008, 0.002);
+        desiredVelocityDiff = 2000; // TODO turn into ratio
+        desiredVelocityBase = 4000; // TODO turn into ratio
+        ctrlBusy = 1;
+      }
+      if(markerRecived)
+      {
+        // disable control:
+        setK(0, 0, 0, 0, 0, 0);
+        resetCtrl();
+        resetLocal();
+        ctrlBusy = 0;
+        // handle recived information:
+        markerCount++;
+        markerAngle = recivedAngle;
+        markerPosition = recivedPosition;
+        markerRecived = 0;
+        // change state:
+        state = CIRCLE;
+      }
+      break;
     case DONE:
       setVolt(0, M1PWM, M1DIR);
       setVolt(0, M2PWM, M2DIR);
-      break;
-    
-    case LISTEN:
-      if(start)
-      {
-        if(ctrlBusy == 0) // if not controling
-        {
-          resetCtrl();
-          maxVolt = 1.8;
-          setK(18, 8, 180, 3, 0.0008, 0.002);
-          setAngle = 3600;
-          setPositionDiff = rotdeg2ticks(setAngle);
-          setPositionBase = feet2ticks(setPosition);
-          ctrlBusy = 1;
-        }
-        if(angle_received)
-        {
-          setK(0, 0, 0, 0, 0, 0); // disable control
-          setAngle = actualAngle;
-          setPositionDiff = actualPositionDiff;
-          desiredPositionDiff = actualPositionDiff;
-          setPosition = actualPosition;
-          setPositionBase = actualPositionBase;
-          desiredPositionBase = actualPositionBase;
-          ctrlBusy = 0;
-          setState = STEPS;
-        }
-      }
       break;
   }
   // ramp:
@@ -236,7 +294,8 @@ void loop()
   //// control ////
   prevCtrltime = ctrltime;
   ctrltime = micros();
-  if(setState != WAIT && setState == DONE) apCtrl(desiredPositionDiff, desiredPositionBase);
+  if(setState == SEARCH) vCtrl(desiredVelocityDiff, desiredVelocityBase);
+  else if(setState != WAIT && setState != DONE) apCtrl(desiredPositionDiff, desiredPositionBase);
 
   //// display ////
   actualAngle = ticks2rotdeg(actualPositionDiff);
@@ -443,6 +502,24 @@ void apCtrl(float desiredPositionDiff, float desiredPositionBase)
   desiredVelocityBase = posKp * posBaseError + posKi * posBaseIntError;
   vCtrl(desiredVelocityDiff, desiredVelocityBase);
 }
+void cirCtrl(float desiredPosition, float velocityRatio, short direction)
+{
+  // // variables:
+  // float posError;
+  // // control:
+  // posError = desiredPosition - actualPosition;
+  // baseVelocity = cirKp * posError;
+  // if(direction == CW)
+  // {
+  //   desiredRightVelocity = baseVelocity;
+  //   desiredLeftVelocity = velocityRatio * baseVelocity;
+  // }
+  // else if(direction == CCW)
+  // {
+  //   desiredRightVelocity = velocityRatio * baseVelocity;
+  //   desiredLeftVelocity = baseVelocity;
+  // }
+}
 void resetCtrl()
 {
   prevPosDiffError = 0; // previous position difference error (ticks)
@@ -452,7 +529,16 @@ void resetCtrl()
   ctrltime = 0; // time of feedback control calculation (us)
   prevCtrltime = 0; // previous time of feedback control calculation (us)
 }
-short ctrlDone(float desAngThesh, float desPosThresh, float voltThresh) // returns 1 if control is done
+void resetLocal()
+{
+  setAngle = actualAngle;
+  setPositionDiff = actualPositionDiff;
+  desiredPositionDiff = actualPositionDiff;
+  setPosition = actualPosition;
+  setPositionBase = actualPositionBase;
+  desiredPositionBase = actualPositionBase;
+}
+short apCtrlDone(float desAngThesh, float desPosThresh, float voltThresh) // returns 1 if control is done
 {
   if(reached(setAngle, actualAngle, desAngThesh) && reached(setPosition, actualPosition, desPosThresh) && steady(voltage, voltThresh)) // if control has reached desired and voltage is steady
     return(1);
@@ -481,33 +567,38 @@ float rail(float value, float maxValue)
 //////// communications ////////
 void receiveFromPi() // this receives the information from the pi about starting program and later angle
 { 
-    offset = Wire.read(); //read reads in the first byte of the wire, with the register to write to (after address and write bit since master is writing)
-    //until the master decides to stop sending data
+  offset = Wire.read(); //read reads in the first byte of the wire, with the register to write to (after address and write bit since master is writing)
+  //until the master decides to stop sending data
 
-    //this will need to be updated as well to fit. 
-    while (Wire.available()) 
-    {
-      instruction[msgLength] = Wire.read(); //read it byte by byte
-      msgLength++; // increments the value in the array to move to the next index that is sent from the pi
-    }
-
-    //offset = 0 here, not that it matters
-    if (msgLength == 1 && instruction[0] == 0){
-        start=1; //this is a flag to raise to indicate to the arduino that we're ready to start spinning
-    }
-    //offset is 1 here, again, doesn't matter
-    else if (msgLength == 4){
-        angle_convert.bytes[0] = instruction[3];
-        angle_convert.bytes[1] = instruction[2];
-        angle_convert.bytes[2] = instruction[1];
-        angle_convert.bytes[3] = instruction[0];
-        angle = angle_convert.floatValue;
-        angle_received = 1; //this is the flag that is raised to tell the controls team to change its state to rotating to a specific angle
-
-    }
-    msgLength = 0; //reset it here, since we use it already?
-    //not sure how to implement, but if offset = 0, start spinning
-    //if offset = 1, then the next 2 bytes are the angle. Figure out how to decode it or whatever
+  //this will need to be updated as well to fit. 
+  while(Wire.available()) 
+  {
+    instruction[msgLength] = Wire.read(); //read it byte by byte
+    msgLength++; // increments the value in the array to move to the next index that is sent from the pi
+  }
+  //offset = 0 here, not that it matters
+  if (msgLength == 1 && instruction[0] == 0)
+  {
+    start = 1; //this is a flag to raise to indicate to the arduino that we're ready to start spinning
+  }
+  //offset is 1 here, again, doesn't matter
+  else if (msgLength == 8)
+  {
+    byteFloat.bytes[0] = instruction[7];
+    byteFloat.bytes[1] = instruction[6];
+    byteFloat.bytes[2] = instruction[5];
+    byteFloat.bytes[3] = instruction[4];
+    recivedAngle = byteFloat.floatValue;
+    byteFloat.bytes[0] = instruction[3];
+    byteFloat.bytes[1] = instruction[2];
+    byteFloat.bytes[2] = instruction[1];
+    byteFloat.bytes[3] = instruction[0];
+    recivedAngle = byteFloat.floatValue;
+    markerRecived = 1; //this is the flag that is raised to tell the controls team to change its state to rotating to a specific angle
+  }
+  msgLength = 0; //reset it here, since we use it already?
+  //not sure how to implement, but if offset = 0, start spinning
+  //if offset = 1, then the next 2 bytes are the angle. Figure out how to decode it or whatever
 }
 void requestFromPi() // this sends the information that we need to the pi i dont think this is used until later. Could be useful for acks, if we need those
 {
@@ -519,6 +610,18 @@ void requestFromPi() // this sends the information that we need to the pi i dont
       msgLength++;
     }
 }
+void request()
+{
+  Wire.request(stateToPi);  
+}
+// void sendAckToPi()
+// {
+//   if(flagToPi == 1) 
+//   {
+//     Wire.write('1'); // they will start searching again
+//   }
+//   flagToPi = 0;
+// }
 
 //////// conversions ////////
 float calctps(unsigned long tickperiod, unsigned long ticktime, short direction) // calculates ticks per second from tick period, tick time, and time
