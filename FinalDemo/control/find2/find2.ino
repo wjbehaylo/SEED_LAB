@@ -181,6 +181,7 @@ void loop()
   static long printtime = 0; // Variable to manage print intervals for debugging.
   // static int fullCircleTicks = 0; // make it go in circle
 
+
   // State machine handling various operation modes of the robot.
   switch (state) 
   {
