@@ -53,11 +53,15 @@ def Get_R_Position(theta_sa, d_sa, R):
     d_sr = np.cos(theta_asr*np.pi/180) * d_sa #weird conversion I know, but np.cos takse in radians
     #returns angle and distance in a tuple
 
-    if (abs(theta_sa)>theta_asr):
-        theta_m = abs(theta_sa) - theta_asr
-    else:
+    if (abs(theta_sa)>theta_asr): # here we want to send a negative angle
+        theta_m = theta_asr - abs(theta_sa)
+    elif (abs(theta_sa)<theta_asr): #we want to send a positive angle
         theta_m = theta_asr -abs(theta_sa)
-    
+
+    print("theta sent")
+    print(theta_m)
+    print("distance sent")
+    print(d_sr)
     return (theta_m, d_sr)
 
 def Generate_IEEE_vector(value):
@@ -121,6 +125,7 @@ def stateB():
         if stateDone is True: #if  arduino is done spinning
             stateDone = False #then that state is no longer done since we are transitioning into the next one
             #then we move to the next state, waiting for circling to start
+            time.sleep(0.1) #wait 0.1 seconds so that we don't overwrite data
             return stateC
         else:
             return stateB #if arduino isn't done spinning, state isn't done
@@ -148,7 +153,8 @@ def stateD():
     global ids #so that we can use ids being not None as our state transition logic
     
     if ids is not None: #if we have detected a marker
-        ids = None #we need to change ids here, for the next iteration      
+        ids = None #we need to change ids here, for the next iteration
+        time.sleep(0.1) #I added this in because we started polling for new too soon
         return stateC #we now wait for controls to move
 
     else: #if we haven't detected a marker, 
@@ -189,7 +195,7 @@ camera_matrix = np.array([[1100.16914, 0, 822.431875],
                           [0, 0, 1]])
 dist_coeffs = np.array([-.13395956, 1.44725569, 0.01324846, .04205741, -2.61323609])  
 # Marker size in meters, also necessary for distance calculation
-marker_size = 0.025  
+marker_size = 0.05
 
 #these are the global variables we need. This is how I am currently passing data between states
 ids = None
@@ -212,10 +218,10 @@ state = stateD #make this start in stateA for the actual program. state D for i2
 input("Press any key to continue:") #uncomment this for potential speed up
 
 while state is not stateE:
-        
+    
     #we check to see what state we are in, and based on that, do stuff
     #comment this in for debugging
-    print(state_dictionary[state]) 
+    #print(state_dictionary[state]) 
     
      
     #now we enter the state conditionals
@@ -226,6 +232,7 @@ while state is not stateE:
         success = 0 #sending a 0, since our program can run!
         offset_success = 0
         i2c_arduino.write_byte_data(ARD_ADDR, offset_success, success)
+        
         #we have told arduino to start spinning. we will now (soon) move
         
         
@@ -242,9 +249,7 @@ while state is not stateE:
         
         #at the beginning of the big while loop, we determine if arduino has sent anything.
         if stateDone is False: #so we only do this searching if stateDone is false
-            ret,frame = cap.read()
-            if not ret:
-                print("error capturing frame") #this just checks if we successfully found it
+            
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) #convert to grayscale
             
             #corners has first index for which marker, 
@@ -297,45 +302,54 @@ while state is not stateE:
     #if we are in this state, the robot is moving in a circle and we will be looking to detect new markers
     elif state is stateD:
         
-        
-        ret,frame = cap.read()
+        '''
+        ret,frame = cap.read() #I'm trrying to move this to be done in every state
+        #cv2.imshow('Frame',frame)
         if not ret:
             print("error capturing frame")
-        gray = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
-        corners, ids, _ = aruco.detectMarkers(frame,aruco_dict,parameters=parameters)
-        #for now, we assume that the first marker detected will be the closest one/next. This may not be true
-        #When debugging, be sure to stay aware of this
-        #to calculate the average of each of the corner coordinate sets
-        if ids is not None:
-            xCenter = np.mean(corners[0][0][:, 0]) #mean of all corner x coordinates
+        '''
 
-            #based on our xCenter, we get The aruco angle
-            angle = Get_Angle(xCenter)
-            rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corners[0], marker_size, camera_matrix, dist_coeffs)
-            # Calculate distance to the marker, in meters
-            distance = np.linalg.norm(tvecs[0])
-            print("distance detected")
-            print(distance)
-            theta_m, d_sr = Get_R_Position(angle, distance, radius)
-            print("angle to rotate")
-            print(theta_m)
-            print("distance to move")
-            print(d_sr)
-            dist_array = Generate_IEEE_vector(d_sr)
-            angle_array= Generate_IEEE_vector(theta_m)
-            
-            data = np.concatenate((angle_array, dist_array)) #the data to be sent, a combination of the two
-                    
-            
-            offset_data = 1 #we want to write to the second register I believe, and the other thing (spin start) will go to the first. Just arbitrary though
-            #send the data
-            try:
-                #ask arduino to take encoder reading
-                #This sends the bytes from last to first. 
-                i2c_arduino.write_i2c_block_data(ARD_ADDR, offset_data, data)
-            except IOError:
-                print("Could not write data to the arduino")
-            #we don't set ids to None here, since we need it to not be none for our state transition logic
+        while True:
+            ret,frame = cap.read() #I'm trrying to move this to be done in every state
+            #cv2.imshow('Frame',frame)
+            if not ret:
+                print("error capturing frame")
+        
+            corners, ids, _ = aruco.detectMarkers(frame,aruco_dict,parameters=parameters)
+            #for now, we assume that the first marker detected will be the closest one/next. This may not be true
+            #When debugging, be sure to stay aware of this
+            #to calculate the average of each of the corner coordinate sets
+            if ids is not None:
+                xCenter = np.mean(corners[0][0][:, 0]) #mean of all corner x coordinates
+
+                #based on our xCenter, we get The aruco angle
+                angle = Get_Angle(xCenter)
+                rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corners[0], marker_size, camera_matrix, dist_coeffs)
+                # Calculate distance to the marker, in meters
+                distance = np.linalg.norm(tvecs[0])
+                
+                theta_m, d_sr = Get_R_Position(angle, distance, radius)
+                #print("angle to rotate")
+                #print(theta_m)
+                #print("distance to move")
+                #print(d_sr)
+                dist_array = Generate_IEEE_vector(d_sr)
+                angle_array= Generate_IEEE_vector(theta_m) #normally should be theta_m
+
+                data = np.concatenate((angle_array, dist_array)) #the data to be sent, a combination of the two
+                        
+                
+                offset_data = 1 #we want to write to the second register I believe, and the other thing (spin start) will go to the first. Just arbitrary though
+                #send the data
+                try:
+                    #ask arduino to take encoder reading
+                    #This sends the bytes from last to first. 
+                    i2c_arduino.write_i2c_block_data(ARD_ADDR, offset_data, data)
+                except IOError:
+                    print("Could not write data to the arduino")
+                #we don't set ids to None here, since we need it to not be none for our state transition logic
+                break
+        break
             
     
     

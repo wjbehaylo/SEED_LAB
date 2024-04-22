@@ -64,8 +64,10 @@ while True:
                 #distance = calculate_distance(corners[i], marker_size, camera_matrix, dist_coeffs) 
                 #print(f"Distance 1 to marker with ID {ids[i][0]}: {distance:.5f} meters")
                 _ , tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corners[i], marker_size, camera_matrix, dist_coeffs)
-                distance = np.linalg.norm(tvecs[0]) 
-                print(f"Distance 2 to marker with ID {ids[i][0]}: {distance:.5f} meters")
+                distance = np.linalg.norm(tvecs[0])
+                xCenter = np.mean(corners[0][0][:, 0])
+                angle = (xCenter -640)/640 * 30.7
+                print(f"Distance 2 to marker with ID {ids[i][0]}: {distance:.5f} {angle}")
         prev_len_ids = len(ids)
     #need to reset prev_len_ids so if one goes out of frame before the next, the distance will update.
     elif ids is None:
