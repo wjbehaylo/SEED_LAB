@@ -123,7 +123,7 @@ def stateB():
             #then we move to the next state, waiting for circling to start
             return stateC
         else:
-            return stateB #if arduino isn't done spinning
+            return stateB #if arduino isn't done spinning, state isn't done
 
 #this state ends when arduino sends us that circle is beginning
 def stateC():
@@ -232,7 +232,7 @@ while state is not stateE:
         #we can assume that if it doesn't send anything, stateDone will remain false. But just in case, we'll set it
         else:
             stateDone = False
-
+        #stateDone is dropped to False (if it is true) in the state transition logic
         
         #at the beginning of the big while loop, we determine if arduino has sent anything.
         if stateDone is False: #so we only do this searching if stateDone is false
@@ -283,7 +283,8 @@ while state is not stateE:
         #we can assume that if it doesn't send anything, stateDone will remain false. But just in case, we'll set it
         else:
             stateDone = False
-        pass #there is no code here of any importance
+        #I think we need to drop down the 'received flag' again in order to wait for a new thing to be sent
+        received = None
         
         
         
@@ -305,13 +306,12 @@ while state is not stateE:
 
             #based on our xCenter, we get The aruco angle
             angle = Get_Angle(xCenter)
-            for i in range(len(ids)):
-                rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corners[i], marker_size, camera_matrix, dist_coeffs)
+            rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corners[i], marker_size, camera_matrix, dist_coeffs)
             # Calculate distance to the marker, in meters
             distance = np.linalg.norm(tvecs[0])
             print("distance detected")
             print(distance)
-            theta_m,d_sr = Get_R_Position(angle, distance, radius)
+            theta_m, d_sr = Get_R_Position(angle, distance, radius)
             print("angle to rotate")
             print(theta_m)
             print("distance to move")
@@ -331,7 +331,7 @@ while state is not stateE:
             except IOError:
                 print("Could not write data to the arduino")
             #we don't set ids to None here, since we need it to not be none for our state transition logic
-            break
+            
     
     
     #we don't need anything for stateE, since we will never actually be in it
