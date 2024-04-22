@@ -44,13 +44,14 @@
 
 // I2C communication address.
 #define MY_ADDR 8 // Address of this device on the I2C bus.
+#define ACK_NOT_DONE 1 // What is sent when probed if state isn't finished
 #define ACK_360_TURN_DONE 2 // 360 degree turn done
 #define ACK_90_TURN_DONE 3 // 90 degree turn done 
-#define ACK_MOVE_COMPLETE 4 // 
+#define ACK_MOVE_DONE 4 // 
 
 // state variable to send to PI
 int stateToPi = 1;
-
+int secondRotate = 0;
 //////// Variables ////////
 //typedef state 
 enum State {WAIT, FULLSEARCH, SEARCH, ROTATE, MOVE, DONE}; // State machine for different modes of operation.
@@ -112,12 +113,13 @@ float amperage[2]; // Array to hold the current draw of each motor.
 
 // I2C communication variables.
 volatile uint8_t offset = 0; // Variable to hold the offset in the received I2C message.
-volatile uint8_t instruction[32] = {0}; // Array to hold the instructions received via I2C.
+volatile uint8_t instruction[64] = {0}; // Array to hold the instructions received via I2C.
 volatile uint8_t msgLength = 0; // Variable to hold the length of the received I2C message.
 volatile uint8_t start = 0; // Flag to indicate that the start command has been received via I2C.
 volatile uint8_t markerRecived = 0; // Flag to indicate that a marker position has been received.
-volatile float recivedAngle = 0; // Variable to hold the received angle of a marker.
-volatile float recivedPosition = 0; // Variable to hold the received position of a marker.
+volatile float recivedAngle[7] = {0}; // Variable to hold the received angle of a marker.
+volatile float recivedPosition[7] = {0}; // Variable to hold the received position of a marker.
+volatile uint8_t num_markers = 0;
 volatile float markerAngle = 0; // Variable to hold the angle of the current marker being targeted.
 volatile float markerPosition = 0; // Variable to hold the position of the current marker being targeted.
 int flagToPi = 0; // Flag to signal to the Raspberry Pi that the Arduino is ready for further instructions.
@@ -197,7 +199,6 @@ void loop()
             resetCtrl(); // Reset control variables and parameters.
             resetLocal(); // Reset local parameters and variables.
             setAngle = 360;
-            stateToPi = ACK_360_TURN_DONE; /// 360 degree turn done value is 2
             maxVolt = 1.8; // Set maximum voltage for this operation mode.
             setK(18, 8, 180, 3, 0.0008, 0.002); // Set PID gains for control.
             setPositionDiff = rotdeg2ticks(360); // Convert desired angle to tick difference.
@@ -206,16 +207,21 @@ void loop()
         }
         if(markerRecived) 
         { // Check if a marker has been detected.
-            if(recivedPosition < markerPosition) 
-            { // Check if the new marker is closer than the previous one.
-                markerAngle = -1 * recivedAngle; // Update to new marker angle.
-                markerPosition = recivedPosition; // Update to new marker position.
+            for(int i = 0; i<num_markers; i++){
+              if(recivedPosition[i] < markerPosition) 
+              { // Check if the new marker is closer than the previous one.
+                  markerAngle = -1 * recivedAngle; // Update to new marker angle.
+                  markerPosition = recivedPosition[i]; // Update to new marker position.
+              }
+              //num_markers = 0; //might need to uncomment this if its buggy?
+              markerRecived = 0; // Reset marker received flag.
             }
-            markerRecived = 0; // Reset marker received flag.
+            
         } 
         // maybe else if
         if(apCtrlDone(1, 5, 1.1))  /// is this supposed to be apCtrlDone??? you had it as ctrldone but that is not a variable
         { // Check if current control task is complete.
+            stateToPi = ACK_360_TURN_DONE; //we want to send this stateToPi only when the 360 turn is done
             setK(0, 0, 0, 0, 0, 0); // Reset PID gains to zero.
             ctrlBusy = 0; // Indicate that control is no longer active.
             state = ROTATE; // Transition to MOVE state to approach the marker.
@@ -238,8 +244,12 @@ void loop()
         if(apCtrlDone(1, 0.4, 1.1)) { // Check if the movement control is completed.
           setK(0, 0, 0, 0, 0, 0); // Reset PID gains to zero.
           ctrlBusy = 0; // Indicate that control is no longer active.
-          stateToPi = ACK_SECOND_TURN_DONE;
-          state = MOVE;
+          if (markerCount == 0 && secondRotate == 1) {
+            stateToPi = ACK_90_TURN_DONE; //we want to send to the pi that the turn is done
+            state = SEARCH;
+            secondRotate = 0;
+          }
+          else state = MOVE;
         }
         break;
 
@@ -264,10 +274,14 @@ void loop()
             {
               setAngle = actualAngle - 90;  
               setPosition = actualPosition;
-              stateToPi = ACK_90_TURN_DONE;
               state = ROTATE;
+              secondRotate = 1;
             }
-            else if(markerCount < 7) state = SEARCH; // If more markers to process, go to SEARCH state.
+            else if(markerCount < 7) {
+              state = SEARCH; // If more markers to process, go to SEARCH state.
+              stateToPi = ACK_MOVE_COMPLETE;
+
+            }
             else state = DONE; // Otherwise, finish the operation in DONE state.
         }
         break;
@@ -284,7 +298,7 @@ void loop()
             setK(18, 8, 180, 3, 0.0008, 0.002); // Set PID gains for search mode.
             desiredVelocityDiff = 1200; // TODO turn into ratio THIS HAS A RADIUS OF 17CM
             desiredVelocityBase = 1100; // TODO turn into ratio
-            float circleFraction = 180; // Define the fraction of the circle to complete (half circle here).
+            float circleFraction = 360; //changed from 180// Define the fraction of the circle to complete (half circle here).
             float desiredDistance = (circleFraction / 360.0) * 7469.660; // Calculate the distance based on circle fraction.
             float requiredTicks = milim2ticks(desiredDistance); // Convert the distance to encoder ticks.
             stateToPI = ACK_MOVE_COMPLETE; // completed circle 
@@ -298,8 +312,8 @@ void loop()
             resetLocal(); // Reset local parameters.
             ctrlBusy = 0; // Indicate that control is no longer active.
             markerCount++; // Increment marker count as a new marker has been found.
-            markerAngle = -1 * recivedAngle; // Update to new marker angle. Made negative because we might be be opposite on turning versus PI
-            markerPosition = recivedPosition; // Update to new marker position.
+            markerAngle = -1 * recivedAngle[0]; // Update to new marker angle. Made negative because we might be be opposite on turning versus PI
+            markerPosition = recivedPosition[0]; // Update to new marker position.
             markerRecived = 0; // Reset marker received flag.
             //// send acknowledgement state to pi that we have completed moving 
             //request(); // send information to pi that we are done moving 
@@ -653,63 +667,63 @@ void receiveFromPi()
 {
   // Read the first byte from the I2C bus, which typically indicates the command or data type.
   offset = Wire.read(); // Read the offset byte which determines the type of data following.
-  Serial.println("i2c");
+  //Serial.println("i2c");
   // Read remaining bytes from the I2C bus until no more are available.
   while(Wire.available()) {
     // Store each byte in the instruction array and increment the message length counter.
     instruction[msgLength] = Wire.read(); // Store the byte in the instruction array.
     msgLength++; // Increment the counter for each byte read.
   }
-
+  num_markers = msgLength /8;
   // Process the received message based on its length and content.
   if (msgLength == 1 && instruction[0] == 0) 
   {
     // If a single byte with value 0 is received, interpret it as a start command.
     start = 1; // Set the start flag to initiate operations.
   }
-  else if (msgLength == 8) 
+  else //otherwise, we are getting markers (each of which will be 8 bytes)
   {
+    for(int i = 0; i<num_markers; i++){
+      byteFloat.bytes[0] = instruction[7 + 8*i]; // Assign the bytes in reverse order to convert to float.
+      byteFloat.bytes[1] = instruction[6 + 8*i];
+      byteFloat.bytes[2] = instruction[5 + 8*i];
+      byteFloat.bytes[3] = instruction[4 + 8*i];
+      recivedPosition[i] = byteFloat.floatValue; // Convert the first four bytes to a float representing an angle.
+      recivedPosition[i] = recivedPosition[i] * 3.28084; // conversion from meter we are getting from PI into feet
+      byteFloat.bytes[0] = instruction[3 + 8*i]; // Repeat for the next four bytes.
+      byteFloat.bytes[1] = instruction[2 + 8*i];
+      byteFloat.bytes[2] = instruction[1 + 8*i];
+      byteFloat.bytes[3] = instruction[0 + 8*i];
+      recivedAngle[i] = byteFloat.floatValue; // Convert the second set of four bytes to a float representing a position.
+      markerRecived = 1; // Set the marker received flag to indicate that new marker data has been received.
+      Serial.println(recivedAngle[i]);
+      Serial.println(recivedPosition[i]);
+    }
     // If eight bytes are received, interpret the first four as one floating-point value and the next four as another.
     // This is typically used to receive two floating-point numbers in sequence.
-    byteFloat.bytes[0] = instruction[7]; // Assign the bytes in reverse order to convert to float.
-    byteFloat.bytes[1] = instruction[6];
-    byteFloat.bytes[2] = instruction[5];
-    byteFloat.bytes[3] = instruction[4];
-    recivedPosition = byteFloat.floatValue; // Convert the first four bytes to a float representing an angle.
-    recivedPosition = recivedPosition * 3.28084; // conversion from meter we are getting from PI into feet
-    byteFloat.bytes[0] = instruction[3]; // Repeat for the next four bytes.
-    byteFloat.bytes[1] = instruction[2];
-    byteFloat.bytes[2] = instruction[1];
-    byteFloat.bytes[3] = instruction[0];
-    recivedAngle = byteFloat.floatValue; // Convert the second set of four bytes to a float representing a position.
-    markerRecived = 1; // Set the marker received flag to indicate that new marker data has been received.
-    Serial.println(recivedAngle);
-    Serial.println(recivedPosition);
+    
   }
   // Reset the message length for the next reception.
   msgLength = 0;
 }
 
 // Handle requests from the Raspberry Pi for data via I2C.
+// This is where the arduino writes to the Pi, so this is where the code needs to be
 void requestFromPi()
 {
   // Read the first byte from the I2C bus when the Raspberry Pi requests data.
   // This byte often specifies the type of data the Raspberry Pi is requesting.
-  offset = Wire.read(); // Read the first byte to determine the requested data type.
-
-  // Read any additional data if available. This part is typically used to receive a full message or command.
-  while (Wire.available()) {
-    // Read each subsequent byte and store the first in the instruction array.
-    // This example assumes only one byte of significant data follows the initial request, which is not typical in complex I2C communications.
-    instruction[0] = Wire.read(); // Read and store the byte.
-    msgLength++; // Increment the message length counter.
-  }
+  Wire.write(stateToPi);
+  stateToPi = ACK_NOT_DONE;
 }
 
+/*
 void sendStateToPi() 
 {
     Wire.write(stateToPi);  // Send the current state as a single byte
 }
+*/
+
 // Send an acknowledgment to the Raspberry Pi, typically to confirm receipt of a command or data.
 //void sendAckToPi()
 //{

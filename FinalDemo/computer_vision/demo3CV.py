@@ -204,7 +204,8 @@ offset = 0
 #these are the values of the messages that we want from the arduino
 
 ACK_360_DONE = 2
-ACK_MOVE_DONE = 3
+ACK_90_Done = 3
+ACK_MOVE_DONE = 4
 #I store the data globally so that our program can access it when in different states
 state = stateD #make this start in stateA for the actual program. state D for i2c send check
 
@@ -232,7 +233,7 @@ while state is not stateE:
     elif state is stateB:
         #this line here is to determine if we have received anything from the arduino, since it is important
         received=i2c_arduino.read_byte_data(ARD_ADDR, offset) #since the arduino is just sending us something if it should be, we just need to see if it sends anything
-        if received == ACK_360_DONE: #if the arduion has sent anything
+        if (received == ACK_360_DONE): #if the arduion has sent anything
             stateDone = True
         #we can assume that if it doesn't send anything, stateDone will remain false. But just in case, we'll set it
         else:
@@ -283,13 +284,12 @@ while state is not stateE:
     elif state is stateC:
         #this line here is to determine if we have received anything from the arduino, since it is important
         received=i2c_arduino.read_byte_data(ARD_ADDR, offset) #since the arduino is just sending us something if it should be, we just need to see if it sends anything
-        if received == ACK_MOVE_DONE: #if the arduino has sent anything
+        if (received == ACK_MOVE_DONE or received == ACK_90_Done): #if the arduino has sent anything
             stateDone = True
         #we can assume that if it doesn't send anything, stateDone will remain false. But just in case, we'll set it
         else:
             stateDone = False
         #I think we need to drop down the 'received flag' again in order to wait for a new thing to be sent
-        received = None
         
         
         
