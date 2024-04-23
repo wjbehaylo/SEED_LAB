@@ -241,6 +241,7 @@ void loop()
             setPositionDiff = rotdeg2ticks(setAngle); // Convert angle to tick difference for rotation.
             setPositionBase = feet2ticks(setPosition); // Convert position to base position in ticks.
             ctrlBusy = 1; // Indicate that control operation is now active.
+            stateToPi = ACK_NOT_DONE
         }
         if(apCtrlDone(1, 0.4, 1.1)) { // Check if the movement control is completed.
           setK(0, 0, 0, 0, 0, 0); // Reset PID gains to zero.
@@ -266,7 +267,7 @@ void loop()
             setPositionDiff = rotdeg2ticks(setAngle); // Convert angle to tick difference for rotation.
             setPositionBase = feet2ticks(setPosition); // Convert position to base position in ticks.
             ctrlBusy = 1; // Indicate that control operation is now active.
-
+            stateToPi = ACK_NOT_DONE
         }
         if(apCtrlDone(1, 0.4, 1.1)) { // Check if the movement control is completed.
             setK(0, 0, 0, 0, 0, 0); // Reset PID gains to zero.
@@ -274,7 +275,7 @@ void loop()
             if (markerCount == 0) 
             {
               setAngle = actualAngle - 90;  
-              setPosition = actualPosition;
+              setPosition = actualPosition; 
               state = ROTATE;
               secondRotate = 1;
             }

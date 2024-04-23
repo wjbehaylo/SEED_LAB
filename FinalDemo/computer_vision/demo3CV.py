@@ -203,7 +203,7 @@ corners = None
 angle = None
 stateDone = False
 C_count = 1 #make sure this is zero when we actually run it, 1 for starting at first
-radius = 0.3575 #radius is 50 cm. This has units of meters, so we need 0.3575 meters
+radius = 0.3575 #This has units of meters, so we need 0.3575 meters
 prev_len_ids = 0 #default it to 0 at the beginning
 offset = 0
 
