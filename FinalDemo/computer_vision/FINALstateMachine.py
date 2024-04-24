@@ -26,7 +26,6 @@ def stateA():
 #in this state we are consistently detecting markers, waiting for 'end' from arduino
 def stateB():
     global transition
-
     if transition is True: 
         transition = False 
         time.sleep(0.1)
@@ -41,10 +40,10 @@ def stateC():
 
     if transition is True: 
         transition = False 
-        count = count +1 #we increment the number of wait states we have done
-        if (count == 7): 
-            return stateE 
-        else: 
+        #count = count +1 #we increment the number of wait states we have done
+        #if (count == 7): 
+         #   return stateE 
+        #else: 
         return stateD 
         
     elif transition is False:
@@ -121,8 +120,10 @@ cap.set(cv2.CAP_PROP_EXPOSURE, -14)
 cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_6X6_50)
 parameters = aruco.DetectorParameters()
+#time.sleep(.5)
 
-while state is not stateE: 
+while state is not stateE:
+    
     
     if state is stateA:
         success = 0 
@@ -138,10 +139,12 @@ while state is not stateE:
             transition = True
         else:
             transition = False
-      
-        if transition is False:
+        #transition is dropped to False (if it is true) in the state transition logic
+        
+        #at the beginning of the big while loop, we determine if arduino has sent anything.
+        if transition is False: #so we only do this searching if transition is false
+            
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) #convert to grayscale
-
             corners, ids, _ = aruco.detectMarkers(gray, aruco_dict, parameters=parameters) #search for ids
             
             if ids is not None:
@@ -161,7 +164,10 @@ while state is not stateE:
 
             elif ids is None:
                 prev_len_ids = 0
-            
+                
+        #if transition is true, then we are just exiting this state. 
+
+        
     #if we are in this state, we just need to be waiting for the arduino to send any information
     elif state is stateC:
         transition = False
@@ -174,26 +180,37 @@ while state is not stateE:
         if (received == 4):
             received = 0
             transition = True # if a four is received we allow ourselves to go to the next state which is D
-          
- 
+            
+        
+        
     #if we are in this state, the robot is moving in a circle and we will be looking to detect new markers
     elif state is stateD:
         #potentially clear variables
         ids = None
         distance = None
         angle = None
-        
+
         while True:
             ret,frame = cap.read()
             if not ret:
                 print("error capturing frame")
         
             corners, ids, _ = aruco.detectMarkers(frame,aruco_dict,parameters=parameters)   
-      
+            #cap.release()
+            #cap.open(0)
+            #cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+            #cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+            #cap.set(cv2.CAP_PROP_EXPOSURE, -14)
+            #cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            #aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_6X6_50)
+            #parameters = aruco.DetectorParameters()
+            #time.sleep(1)
+            
+            
             if ids is not None and len(ids)>0: # this conditional is causing all of our issues
                 transition = True
             
-                _, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corners[0], marker_size, camera_matrix, dist_coeffs)
+                rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corners[0], marker_size, camera_matrix, dist_coeffs)
                 xCenter = np.mean(corners[0][0][:, 0]) #mean of all corner x coordinates
 
                 angle = (xCenter -640)/640 * 30.7
@@ -219,4 +236,6 @@ while state is not stateE:
     #this is our state transition. Various states have different things they consider, so instead of setting up their inputs I make them global
     new_state = state()
     state = new_state
+
+#this is what happens after we enter into stateE, since we exit the loop
 
